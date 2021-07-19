@@ -13,13 +13,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
 public interface SecureJar {
     Path getPrimaryPath();
+
+    BiPredicate<String, String> getPathFilter();
 
     Optional<URI> findFile(String name);
 
