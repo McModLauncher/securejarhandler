@@ -20,8 +20,6 @@ import java.util.jar.Manifest;
 public interface SecureJar {
     Path getPrimaryPath();
 
-    BiPredicate<String, String> getPathFilter();
-
     Optional<URI> findFile(String name);
 
     Manifest getManifest();
