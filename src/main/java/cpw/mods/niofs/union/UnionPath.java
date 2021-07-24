@@ -158,7 +158,7 @@ public class UnionPath implements Path {
             if (remaining == 0 && i == p.pathParts.length) {
                 return new UnionPath(this.getFileSystem());
             } else if (remaining == 0) {
-                return p.subpath(i, p.getNameCount());
+                return p.subpath(i + poff, p.getNameCount());
             } else {
                 var updots = IntStream.range(0, remaining).mapToObj(idx -> "..").collect(Collectors.joining(getFileSystem().getSeparator()));
                 if (i == p.pathParts.length) {
