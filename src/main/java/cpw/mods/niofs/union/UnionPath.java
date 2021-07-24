@@ -155,16 +155,16 @@ public class UnionPath implements Path {
             }
 
             var remaining = this.pathParts.length - i - meoff;
-            if (remaining == 0 && i == p.pathParts.length) {
+            if (remaining == 0 && (i + poff) == p.pathParts.length) {
                 return new UnionPath(this.getFileSystem());
             } else if (remaining == 0) {
                 return p.subpath(i + poff, p.getNameCount());
             } else {
                 var updots = IntStream.range(0, remaining).mapToObj(idx -> "..").collect(Collectors.joining(getFileSystem().getSeparator()));
-                if (i == p.pathParts.length) {
+                if ((i + poff) == p.pathParts.length) {
                     return new UnionPath(this.getFileSystem(), updots);
                 } else {
-                    return new UnionPath(this.getFileSystem(), updots + getFileSystem().getSeparator() + p.subpath(i, p.getNameCount()));
+                    return new UnionPath(this.getFileSystem(), updots + getFileSystem().getSeparator() + p.subpath((i + poff), p.getNameCount()));
                 }
             }
         }
