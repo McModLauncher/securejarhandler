@@ -19,7 +19,7 @@ public interface JarMetadata {
     Pattern REPEATING_DOTS = Pattern.compile("(\\.)(\\1)+");
     Pattern LEADING_DOTS = Pattern.compile("^\\.");
     Pattern TRAILING_DOTS = Pattern.compile("\\.$");
-    Pattern NUMBERLIKE_PARTS = Pattern.compile("(^|\\.)([0-9]+)"); // matches asdf.1.2b because both are invalid java identifiers
+    Pattern NUMBERLIKE_PARTS = Pattern.compile("(?<=^|\\.)([0-9]+)"); // matches asdf.1.2b because both are invalid java identifiers
     List<String> ILLEGAL_KEYWORDS = List.of(
         "abstract","continue","for","new","switch","assert",
         "default","goto","package","synchronized","boolean",
@@ -29,7 +29,7 @@ public interface JarMetadata {
         "extends","int","short","try","char","final","interface",
         "static","void","class","finally","long","strictfp",
         "volatile","const","float","native","super","while");
-    Pattern KEYWORD_PARTS = Pattern.compile("(^|\\.)(" + String.join("|", ILLEGAL_KEYWORDS) + ")(\\.|$)");
+    Pattern KEYWORD_PARTS = Pattern.compile("(?<=^|\\.)(" + String.join("|", ILLEGAL_KEYWORDS) + ")(?=\\.|$)");
 
     static JarMetadata from(final SecureJar jar, final Path... path) {
         if (path.length==0) throw new IllegalArgumentException("Need at least one path");
@@ -83,6 +83,7 @@ public interface JarMetadata {
     }
 
     private static String cleanModuleName(String mn) {
+
         // replace non-alphanumeric
         mn = NON_ALPHANUM.matcher(mn).replaceAll(".");
 
@@ -99,10 +100,10 @@ public interface JarMetadata {
             mn = TRAILING_DOTS.matcher(mn).replaceAll("");
 
         // fixup digits-only components
-        mn = NUMBERLIKE_PARTS.matcher(mn).replaceAll("$1_$2");
+        mn = NUMBERLIKE_PARTS.matcher(mn).replaceAll("_$1");
 
         // fixup keyword components
-        mn = KEYWORD_PARTS.matcher(mn).replaceAll("$1_$2$3");
+        mn = KEYWORD_PARTS.matcher(mn).replaceAll("_$1");
 
         return mn;
     }
