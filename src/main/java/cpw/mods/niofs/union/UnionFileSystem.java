@@ -151,12 +151,13 @@ public class UnionFileSystem extends FileSystem {
     }
 
     private Optional<Path> findFirstFiltered(final UnionPath path) {
-        return this.basepaths.stream()
-                .filter(p -> testFilter(toRealPath(p, path), p))
-                .map(p->toRealPath(p, path))
-                .filter(p->p!=notExistingPath)
-                .filter(UnionFileSystem::exists)
-                .findFirst();
+        for (Path p : this.basepaths) {
+            Path realPath = toRealPath(p, path);
+            if (realPath != notExistingPath && testFilter(realPath, p) && exists(realPath)) {
+                return Optional.of(realPath);
+            }
+        }
+        return Optional.empty();
     }
 
     private <T> Stream<T> streamPathList(final Function<Path,Optional<T>> function) {
@@ -173,13 +174,9 @@ public class UnionFileSystem extends FileSystem {
                 // We need to know the full path for the filter
                 Path realPath = toRealPath(base, path);
                 if (realPath != notExistingPath) {
-                    if (exists(realPath)) {
-                        Optional<BasicFileAttributes> fileAttributes = this.getFileAttributes(realPath);
-                        if (fileAttributes.isPresent()) {
-                            if (testFilter(realPath, base)) {
-                                return (A) fileAttributes.get();
-                            }
-                        }
+                    Optional<BasicFileAttributes> fileAttributes = this.getFileAttributes(realPath);
+                    if (fileAttributes.isPresent() && testFilter(realPath, base)) {
+                        return (A) fileAttributes.get();
                     }
                 }
             }
@@ -274,6 +271,8 @@ public class UnionFileSystem extends FileSystem {
      * Remove leading / for absolute paths
      */
     private boolean testFilter(final Path path, final Path basePath) {
+        if (pathFilter == null) return true;
+
         var sPath = path.toString();
         if (path.getFileSystem() == basePath.getFileSystem()) // Directories, zips will be different file systems.
             sPath = basePath.relativize(path).toString().replace('\\', '/');
