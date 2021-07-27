@@ -186,6 +186,11 @@ public class UnionFileSystem extends FileSystem {
         }
     }
 
+    /**
+     * Checks if a file exists.
+     * Should return the same result as {@link Files#exists(Path, LinkOption...)}.
+     * This implementation should be faster for {@link UnionPath} paths as it does not use exceptions for code flow.
+     */
     public static boolean exists(final Path p) {
         if (p instanceof UnionPath unionPath) {
             return unionPath.getFileSystem().findFirstFiltered(unionPath).isPresent();
