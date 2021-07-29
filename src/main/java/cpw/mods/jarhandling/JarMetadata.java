@@ -19,6 +19,8 @@ public interface JarMetadata {
     Pattern REPEATING_DOTS = Pattern.compile("(\\.)(\\1)+");
     Pattern LEADING_DOTS = Pattern.compile("^\\.");
     Pattern TRAILING_DOTS = Pattern.compile("\\.$");
+    // Extra sanitization
+    Pattern MODULE_VERSION = Pattern.compile("(?<=^|-)([\\d][.\\d]*)");
     Pattern NUMBERLIKE_PARTS = Pattern.compile("(?<=^|\\.)([0-9]+)"); // matches asdf.1.2b because both are invalid java identifiers
     List<String> ILLEGAL_KEYWORDS = List.of(
         "abstract","continue","for","new","switch","assert",
@@ -55,13 +57,13 @@ public interface JarMetadata {
         if (versionMaybe != null)
         {
             Path artifactMaybe = versionMaybe.getParent();
-            if (artifactMaybe != null && path.getFileName().toString().startsWith(artifactMaybe.getFileName() + "-"))
+            if (artifactMaybe != null && path.getFileName().toString().startsWith(artifactMaybe.getFileName().toString() + "-" + versionMaybe.getFileName().toString()))
             {
                 var name = artifactMaybe.getFileName().toString();
                 var ver = versionMaybe.getFileName().toString();
-                var mat = DASH_VERSION.matcher(ver);
+                var mat = MODULE_VERSION.matcher(ver);
                 if (mat.find()) {
-                    ver = ModuleDescriptor.Version.parse(ver.substring(mat.start() + 1)).toString();
+                    ver = ModuleDescriptor.Version.parse(ver.substring(mat.start())).toString();
                     return new SimpleJarMetadata(cleanModuleName(name), ver, pkgs, providers);
                 } else {
                     return new SimpleJarMetadata(cleanModuleName(name), null, pkgs, providers);
