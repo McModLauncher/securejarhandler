@@ -66,15 +66,15 @@ tasks.named('compileJava') {
 }
 
 jmh {
-    includes = [ 'cpw.mods.cl.benchmarks.JarModuleFinderBenchmark' ]
+    includes = [ 'cpw.mods.cl.benchmarks.JarModuleFinderBenchmark', 'cpw.mods.niofs.union.benchmarks.UnionFileSystemBenchmark' ]
     benchmarkMode = ['avgt' ]
     profilers = [ 'stack' ]
     timeOnIteration = '3s'
-    warmup = '3s'
+    warmup = '2s'
     warmupIterations = 3
     iterations = 3
     fork = 3
-    timeUnit = 'ms'
+    timeUnit = 'us'
     // JMH loads the main sourceset without a module context, so add exports and opens for required stuff to all unnamed and disable the missing module crash
     jvmArgsPrepend = ['--add-opens java.base/java.util.jar=ALL-UNNAMED --add-exports java.base/sun.security.util=ALL-UNNAMED -Dsecurejarhandler.throwOnMissingModule=false']
 }
