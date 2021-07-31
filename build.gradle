@@ -67,7 +67,7 @@ tasks.named('compileJava') {
 
 jmh {
     benchmarkMode = ['avgt' ]
-    profilers = [ 'stack' ]
+    profilers = [ 'jfr:dir=./build/results/jmh/' ]
     timeOnIteration = '3s'
     warmup = '2s'
     warmupIterations = 3
