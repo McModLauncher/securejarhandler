@@ -141,9 +141,11 @@ public class UnionFileSystemProvider extends FileSystemProvider {
 
     @Override
     public FileSystem getFileSystem(final URI uri) {
-        var parts = uri.getPath().split("!");
-        if (!fileSystems.containsKey(parts[0])) throw new FileSystemNotFoundException();
-        return fileSystems.get(parts[0]);
+        synchronized (fileSystems) {
+            var parts = uri.getPath().split("!");
+            if (!fileSystems.containsKey(parts[0])) throw new FileSystemNotFoundException();
+            return fileSystems.get(parts[0]);
+        }
     }
 
     @Override
