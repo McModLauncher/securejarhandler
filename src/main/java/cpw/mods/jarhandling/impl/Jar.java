@@ -61,7 +61,7 @@ public class Jar implements SecureJar {
         if (this.nameOverrides.containsKey(rel)) {
             rel = this.filesystem.getPath("META-INF", "versions", this.nameOverrides.get(rel).toString()).resolve(rel);
         }
-        return Optional.of(this.filesystem.getRoot().resolve(rel)).filter(UnionFileSystem::exists).map(Path::toUri);
+        return Optional.of(this.filesystem.getRoot().resolve(rel)).filter(Files::exists).map(Path::toUri);
     }
 
     private record StatusData(String name, Status status, CodeSigner[] signers) {

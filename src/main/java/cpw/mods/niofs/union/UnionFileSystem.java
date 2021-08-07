@@ -44,7 +44,7 @@ public class UnionFileSystem extends FileSystem {
         this.key = key;
         this.basepaths = IntStream.range(0, basepaths.length)
                 .mapToObj(i->basepaths[basepaths.length - i - 1])
-                .filter(UnionFileSystem::exists)
+                .filter(Files::exists)
                 .toList(); // we flip the list so later elements are first in search order.
         this.embeddedFileSystems = this.basepaths.stream().filter(path -> !Files.isDirectory(path))
                 .map(UnionFileSystem::openFileSystem)
@@ -146,14 +146,14 @@ public class UnionFileSystem extends FileSystem {
         return this.basepaths.stream()
                 .map(p->toRealPath(p , path))
                 .filter(p->p!=notExistingPath)
-                .filter(UnionFileSystem::exists)
+                .filter(Files::exists)
                 .findFirst();
     }
 
     private Optional<Path> findFirstFiltered(final UnionPath path) {
         for (Path p : this.basepaths) {
             Path realPath = toRealPath(p, path);
-            if (realPath != notExistingPath && testFilter(realPath, p) && exists(realPath)) {
+            if (realPath != notExistingPath && testFilter(realPath, p) && Files.exists(realPath)) {
                 return Optional.of(realPath);
             }
         }
@@ -184,18 +184,6 @@ public class UnionFileSystem extends FileSystem {
         } else {
             throw new UnsupportedOperationException();
         }
-    }
-
-    /**
-     * Checks if a file exists.
-     * Should return the same result as {@link Files#exists(Path, LinkOption...)}.
-     * This implementation should be faster for {@link UnionPath} paths as it does not use exceptions for code flow.
-     */
-    public static boolean exists(final Path p) {
-        if (p instanceof UnionPath unionPath) {
-            return unionPath.getFileSystem().findFirstFiltered(unionPath).isPresent();
-        }
-        return Files.exists(p);
     }
 
     public void checkAccess(final UnionPath p, final AccessMode... modes) throws IOException {
@@ -247,7 +235,7 @@ public class UnionFileSystem extends FileSystem {
         final var allpaths = new LinkedHashSet<Path>();
         for (final var bp : basepaths) {
             final var dir = toRealPath(bp, path);
-            if (dir == notExistingPath || !exists(dir)) continue;
+            if (dir == notExistingPath || !Files.exists(dir)) continue;
             final var isSimple = embeddedFileSystems.containsKey(bp);
             final var ds = Files.newDirectoryStream(dir, filter);
             StreamSupport.stream(ds.spliterator(), false)
