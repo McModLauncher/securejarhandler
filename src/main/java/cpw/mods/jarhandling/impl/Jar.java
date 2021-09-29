@@ -4,8 +4,6 @@ import cpw.mods.jarhandling.JarMetadata;
 import cpw.mods.jarhandling.SecureJar;
 import cpw.mods.niofs.union.UnionFileSystem;
 import cpw.mods.niofs.union.UnionFileSystemProvider;
-import cpw.mods.niofs.union.UnionPath;
-import sun.security.util.ManifestEntryVerifier;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -18,22 +16,21 @@ import java.security.CodeSigner;
 import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.jar.*;
+import java.util.jar.Attributes;
+import java.util.jar.JarFile;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 
 import static java.util.stream.Collectors.*;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.mapping;
 
 public class Jar implements SecureJar {
     private static final CodeSigner[] EMPTY_CODESIGNERS = new CodeSigner[0];
     private static final UnionFileSystemProvider UFSP = (UnionFileSystemProvider) FileSystemProvider.installedProviders().stream().filter(fsp->fsp.getScheme().equals("union")).findFirst().orElseThrow(()->new IllegalStateException("Couldn't find UnionFileSystemProvider"));
     private final Manifest manifest;
-    private final ManifestEntryVerifier mev;
     private final Hashtable<String, CodeSigner[]> pendingSigners = new Hashtable<>();
-    private final Hashtable<String, CodeSigner[]> existingSigners = new Hashtable<>();
-    private final boolean secure;
+    private final Hashtable<String, CodeSigner[]> verifiedSigners = new Hashtable<>();
+    private final ManifestVerifier verifier = new ManifestVerifier();
     private final Map<String, StatusData> statusData = new HashMap<>();
     private final JarMetadata metadata;
     private final UnionFileSystem filesystem;
@@ -72,42 +69,42 @@ public class Jar implements SecureJar {
 
     @SuppressWarnings("unchecked")
     public Jar(final Supplier<Manifest> defaultManifest, final Function<SecureJar, JarMetadata> metadataFunction, final BiPredicate<String, String> pathfilter, final Path... paths) {
-        final var path = paths[paths.length-1];
         this.filesystem = UFSP.newFileSystem(pathfilter, paths);
         try {
-            if (Files.isDirectory(path)) {
-                var manfile = path.resolve(JarFile.MANIFEST_NAME);
-                if (Files.exists(manfile))
-                    try (var is = Files.newInputStream(manfile)) {
-                        this.manifest = new Manifest(is);
-                    }
-                else
-                    this.manifest = defaultManifest.get();
-                this.mev = null;
-                secure = false;
-            } else {
-                try (var jis = new JarInputStream(Files.newInputStream(path))) {
-                    if (SecureJarVerifier.jarVerifier.get(jis) != null) {
-                        while ((Boolean) SecureJarVerifier.parsingMeta.get(SecureJarVerifier.jarVerifier.get(jis))) {
-                            jis.getNextJarEntry();
+            Manifest mantmp = null;
+            for (int x = paths.length - 1; x >= 0; x--) { // Walk backwards because this is what cpw wanted?
+                var path = paths[x];
+                if (Files.isDirectory(path)) {
+                    var manfile = path.resolve(JarFile.MANIFEST_NAME);
+                    if (Files.exists(manfile)) {
+                        try (var is = Files.newInputStream(manfile)) {
+                            mantmp = new Manifest(is);
+                            break;
                         }
-                        secure = SecureJarVerifier.anyToVerify.getBoolean(SecureJarVerifier.jarVerifier.get(jis));
-                        this.manifest = new Manifest(jis.getManifest());
-                        this.mev = new ManifestEntryVerifier(this.manifest);
-                    } else {
-                        secure = false;
-                        this.manifest = defaultManifest.get();
-                        this.mev = null;
                     }
-                    if (secure) {
-                        pendingSigners.putAll((Hashtable<String, CodeSigner[]>) SecureJarVerifier.sigFileSigners.get(SecureJarVerifier.jarVerifier.get(jis)));
-                        existingSigners.put(JarFile.MANIFEST_NAME, ((Hashtable<String, CodeSigner[]>) SecureJarVerifier.existingSigners.get(SecureJarVerifier.jarVerifier.get(jis))).get(JarFile.MANIFEST_NAME));
-                        StatusData.add(JarFile.MANIFEST_NAME, Status.VERIFIED, existingSigners.get(JarFile.MANIFEST_NAME), this);
+                } else {
+                    try (var jis = new JarInputStream(Files.newInputStream(path))) {
+                        var jv = SecureJarVerifier.getJarVerifier(jis);
+                        if (jv != null) {
+                            while (SecureJarVerifier.isParsingMeta(jv)) {
+                                jis.getNextJarEntry();
+                            }
+
+                            if (SecureJarVerifier.hasSignatures(jv)) {
+                                pendingSigners.putAll(SecureJarVerifier.getPendingSigners(jv));
+                                verifiedSigners.put(JarFile.MANIFEST_NAME, SecureJarVerifier.getVerifiedSigners(jv).get(JarFile.MANIFEST_NAME));
+                                StatusData.add(JarFile.MANIFEST_NAME, Status.VERIFIED, verifiedSigners.get(JarFile.MANIFEST_NAME), this);
+                            }
+                        }
+
+                        if (jis.getManifest() != null) {
+                            mantmp = new Manifest(jis.getManifest());
+                            break;
+                        }
                     }
                 }
             }
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
+            this.manifest = mantmp == null ? defaultManifest.get() : mantmp;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -144,19 +141,17 @@ public class Jar implements SecureJar {
     }
 
     public synchronized CodeSigner[] verifyAndGetSigners(final String name, final byte[] bytes) {
-        if (!secure) return null;
+        if (!hasSecurityData()) return null;
         if (statusData.containsKey(name)) return statusData.get(name).signers;
-        setMEVName(name);
-        mev.update(bytes, 0, bytes.length);
-        try {
-            final var codeSigners = mev.verify(existingSigners, pendingSigners);
-            StatusData.add(name, Status.VERIFIED, codeSigners, this);
-            return codeSigners;
-        } catch (JarException | SecurityException e) {
+
+        var signers = verifier.verify(this.manifest, pendingSigners, verifiedSigners, name, bytes);
+        if (signers == null) {
             StatusData.add(name, Status.INVALID, null, this);
             return null;
-        } finally {
-            setMEVName(null);
+        } else {
+            var ret = signers.orElse(null);
+            StatusData.add(name, Status.VERIFIED, ret, this);
+            return ret;
         }
     }
 
@@ -174,21 +169,13 @@ public class Jar implements SecureJar {
         }
     }
 
-    private void setMEVName(final String name) {
-        try {
-            this.mev.setEntry(name, null);
-        } catch (IOException e) {
-            // ignore - never thrown
-        }
-    }
-
     private Optional<StatusData> getData(final String name) {
         return Optional.ofNullable(statusData.get(name));
     }
 
     @Override
     public Status getFileStatus(final String name) {
-        return secure ? getData(name).map(r->r.status).orElse(Status.NONE) : Status.UNVERIFIED;
+        return hasSecurityData() ? getData(name).map(r->r.status).orElse(Status.NONE) : Status.UNVERIFIED;
     }
 
     @Override
@@ -204,7 +191,7 @@ public class Jar implements SecureJar {
     }
     @Override
     public boolean hasSecurityData() {
-        return secure;
+        return !pendingSigners.isEmpty() || !this.verifiedSigners.isEmpty();
     }
 
     @Override
@@ -216,9 +203,10 @@ public class Jar implements SecureJar {
     public Set<String> getPackages() {
         if (this.packages == null) {
             try (var walk = Files.walk(this.filesystem.getRoot())) {
-                this.packages = walk.filter(path -> Files.exists(path) && !Files.isDirectory(path))
+                this.packages = walk
                     .filter(path->!path.getName(0).toString().equals("META-INF"))
                     .filter(path->path.getFileName().toString().endsWith(".class"))
+                    .filter(Files::isRegularFile)
                     .map(path->path.subpath(0, path.getNameCount()-1))
                     .map(path->path.toString().replace('/','.'))
                     .filter(pkg->pkg.length()!=0)
