@@ -30,13 +30,12 @@ public class TestUnionFS {
                 ()->assertEquals(Files.readString(masktest), "dir2")
         );
         assertAll(
-                Files.walk(masktest.getRoot())
+                Files.walk(masktest.toAbsolutePath().getRoot())
                 .map(Files::exists)
                 .map(f->()->assertTrue(f))
         );
         var p = ufs.getRoot().resolve("subdir1/masktestd1.txt");
-        p.subpath(2, 3);
-        var empty = new UnionPath(ufs, false);
+        p.subpath(1, 2);
     }
 
     @Test

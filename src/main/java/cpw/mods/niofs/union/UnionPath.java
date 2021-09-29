@@ -6,28 +6,55 @@ import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.function.IntBinaryOperator;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 
 public class UnionPath implements Path {
     private final UnionFileSystem fileSystem;
+    private final boolean absolute;
     private final String[] pathParts;
-    static final String ROOT = "";
-
-    UnionPath(final UnionFileSystem fileSystem, boolean knownCorrectSplit, final String... pathParts) {
+    
+    // Store the normalized path after it has been created first
+    private UnionPath normalized;
+    
+    UnionPath(final UnionFileSystem fileSystem, final String... pathParts) {
         this.fileSystem = fileSystem;
-        if (pathParts.length == 0)
+        if (pathParts.length == 0) {
+            this.absolute = false;
             this.pathParts = new String[0];
-        else if (knownCorrectSplit)
-            this.pathParts = pathParts;
-        else {
+        } else {
             final var longstring = String.join(fileSystem.getSeparator(), pathParts);
+            this.absolute = longstring.startsWith(this.getFileSystem().getSeparator());
             this.pathParts = getPathParts(longstring);
         }
+        this.normalized = null;
+    }
+
+    // Private constructor only for known correct split and extra value for absolute
+    private UnionPath(final UnionFileSystem fileSystem, boolean absolute, final String... pathParts) {
+        this(fileSystem, absolute, false, pathParts);
+    }
+    
+    private UnionPath(final UnionFileSystem fileSystem, boolean absolute, boolean isNormalized, final String... pathParts) {
+        this.fileSystem = fileSystem;
+        this.absolute = absolute;
+        this.pathParts = pathParts;
+        if (isNormalized)
+            this.normalized = this;
+        else
+            this.normalized = null;
     }
 
     private String[] getPathParts(final String longstring) {
-        return longstring.replace("\\", this.getFileSystem().getSeparator()).split(this.getFileSystem().getSeparator());
+        var sep = "(?:" + Pattern.quote(this.getFileSystem().getSeparator()) + ")";
+        String pathname = longstring
+                .replace("\\", this.getFileSystem().getSeparator())
+                // Replace double separators with single and remove separators from start and end of longstring
+                .replaceAll("(?:(?:" + sep + "+(?=" + sep + "))|^" + sep + "*|" + sep + "*$)", "");
+        if (pathname.isEmpty())
+            return new String[0];
+        else
+            return pathname.split(this.getFileSystem().getSeparator());
     }
 
     @Override
@@ -37,25 +64,27 @@ public class UnionPath implements Path {
 
     @Override
     public boolean isAbsolute() {
-        return ROOT.equals(this.pathParts[0]);
+        return this.absolute;
     }
 
     @Override
     public Path getRoot() {
-        return new UnionPath(this.fileSystem, true, ROOT);
+        if (this.absolute)
+            return this.fileSystem.getRoot();
+        return null;
     }
 
 
     @Override
     public Path getFileName() {
-        return this.pathParts.length > 0 ? new UnionPath(this.getFileSystem(), true, this.pathParts[this.pathParts.length-1]) : null;
+        return this.pathParts.length > 0 ? new UnionPath(this.getFileSystem(), false, this.pathParts[this.pathParts.length-1]) : null;
     }
 
 
     @Override
     public Path getParent() {
         if (this.pathParts.length > 0) {
-            return new UnionPath(this.fileSystem, true, Arrays.copyOf(this.pathParts,this.pathParts.length - 1));
+            return new UnionPath(this.fileSystem, this.absolute, Arrays.copyOf(this.pathParts,this.pathParts.length - 1));
         } else {
             return null;
         }
@@ -69,15 +98,18 @@ public class UnionPath implements Path {
     @Override
     public Path getName(final int index) {
         if (index < 0 || index > this.pathParts.length -1) throw new IllegalArgumentException();
-        return new UnionPath(this.fileSystem, true, this.pathParts[index]);
+        return new UnionPath(this.fileSystem, false, this.pathParts[index]);
     }
 
     @Override
-    public Path subpath(final int beginIndex, final int endIndex) {
-        if (beginIndex < 0 || beginIndex > this.pathParts.length - 1 || endIndex < 0 || endIndex > this.pathParts.length || beginIndex > endIndex) {
+    public UnionPath subpath(final int beginIndex, final int endIndex) {
+        if (beginIndex < 0 || beginIndex > this.pathParts.length - 1 || endIndex < 0 || endIndex > this.pathParts.length || beginIndex >= endIndex) {
             throw new IllegalArgumentException("Out of range "+beginIndex+" to "+endIndex+" for length "+this.pathParts.length);
         }
-        return new UnionPath(this.fileSystem, true, Arrays.copyOfRange(this.pathParts, beginIndex, endIndex));
+        if (beginIndex == 0 && endIndex == this.pathParts.length) {
+            return this;
+        }
+        return new UnionPath(this.fileSystem, false, Arrays.copyOfRange(this.pathParts, beginIndex, endIndex));
     }
 
     @Override
@@ -86,6 +118,8 @@ public class UnionPath implements Path {
             return false;
         }
         if (other instanceof UnionPath bp) {
+            if (this.absolute != bp.absolute)
+                return false;
             return checkArraysMatch(this.pathParts, bp.pathParts, false);
         }
         return false;
@@ -98,6 +132,8 @@ public class UnionPath implements Path {
             return false;
         }
         if (other instanceof UnionPath bp) {
+            if (!this.absolute && bp.absolute)
+                return false;
             return checkArraysMatch(this.pathParts, bp.pathParts, true);
         }
         return false;
@@ -115,20 +151,28 @@ public class UnionPath implements Path {
 
     @Override
     public Path normalize() {
+        if (normalized != null)
+            return normalized;
         Deque<String> normpath = new ArrayDeque<>();
         for (String pathPart : this.pathParts) {
             switch (pathPart) {
                 case ".":
                     break;
                 case "..":
-                    normpath.removeLast();
+                    if (normpath.isEmpty()) {
+                        // .. on an empty path is allowed, so keep it
+                        normpath.addLast(pathPart);
+                    } else {
+                        normpath.removeLast();
+                    }
                     break;
                 default:
                     normpath.addLast(pathPart);
                     break;
             }
         }
-        return new UnionPath(this.fileSystem, true, normpath.toArray(new String[0]));
+        normalized = new UnionPath(this.fileSystem, this.absolute, true, normpath.toArray(new String[0]));
+        return normalized;
     }
 
     @Override
@@ -137,7 +181,10 @@ public class UnionPath implements Path {
             if (path.isAbsolute()) {
                 return path;
             }
-            return new UnionPath(this.fileSystem, false, this+fileSystem.getSeparator()+other);
+            String[] mergedParts = new String[this.pathParts.length + path.pathParts.length];
+            System.arraycopy(this.pathParts, 0, mergedParts, 0, this.pathParts.length);
+            System.arraycopy(path.pathParts, 0, mergedParts, this.pathParts.length, path.pathParts.length);
+            return new UnionPath(this.fileSystem, this.absolute, mergedParts);
         }
         return other;
     }
@@ -146,27 +193,36 @@ public class UnionPath implements Path {
     public Path relativize(final Path other) {
         if (other.getFileSystem()!=this.getFileSystem()) throw new IllegalArgumentException("Wrong filesystem");
         if (other instanceof UnionPath p) {
-            var poff = p.isAbsolute() ? 1 : 0;
-            var meoff = this.isAbsolute() ? 1 : 0;
-            var length = Math.min(this.pathParts.length - meoff, p.pathParts.length - poff);
+            if (this.absolute != p.absolute) {
+                // Should not be allowed but union fs relies on it
+                // also there is no such concept of a current directory for union paths
+                // meaning absolute and relative paths should have the same effect,
+                // so we just allow this.
+                //throw new IllegalArgumentException("Different types of path");
+            }
+            var length = Math.min(this.pathParts.length, p.pathParts.length);
             int i = 0;
             while (i < length) {
-                if (!Objects.equals(this.pathParts[i + meoff], p.pathParts[i + poff]))
+                if (!Objects.equals(this.pathParts[i], p.pathParts[i]))
                     break;
                 i++;
             }
 
-            var remaining = this.pathParts.length - i - meoff;
-            if (remaining == 0 && (i + poff) == p.pathParts.length) {
+            var remaining = this.pathParts.length - i;
+            if (remaining == 0 && i == p.pathParts.length) {
                 return new UnionPath(this.getFileSystem(), false);
             } else if (remaining == 0) {
-                return p.subpath(i + poff, p.getNameCount());
+                return p.subpath(i, p.getNameCount());
             } else {
-                var updots = IntStream.range(0, remaining).mapToObj(idx -> "..").collect(Collectors.joining(getFileSystem().getSeparator()));
-                if ((i + poff) == p.pathParts.length) {
+                var updots = IntStream.range(0, remaining).mapToObj(idx -> "..").toArray(String[]::new);
+                if (i == p.pathParts.length) {
                     return new UnionPath(this.getFileSystem(), false, updots);
                 } else {
-                    return new UnionPath(this.getFileSystem(), false, updots + getFileSystem().getSeparator() + p.subpath((i + poff), p.getNameCount()));
+                    var subpath = p.subpath(i, p.getNameCount());
+                    String[] mergedParts = new String[updots.length + subpath.pathParts.length];
+                    System.arraycopy(updots, 0, mergedParts, 0, updots.length);
+                    System.arraycopy(subpath.pathParts, 0, mergedParts, updots.length, subpath.pathParts.length);
+                    return new UnionPath(this.getFileSystem(), false, mergedParts);
                 }
             }
         }
@@ -197,7 +253,7 @@ public class UnionPath implements Path {
 
     @Override
     public Path toRealPath(final LinkOption... options) throws IOException {
-        return null;
+        return this.toAbsolutePath().normalize();
     }
 
     @Override
@@ -207,13 +263,22 @@ public class UnionPath implements Path {
 
     @Override
     public int compareTo(final Path other) {
-        return 0;
+        if (other instanceof UnionPath path) {
+            if (this.absolute && !path.absolute)
+                return 1;
+            else if (!this.absolute && path.absolute)
+                return -1;
+            else
+                return Arrays.compare(this.pathParts, path.pathParts);
+        } else {
+            return 0;
+        }
     }
 
     @Override
     public boolean equals(final Object o) {
         if (o instanceof UnionPath p) {
-            return p.getFileSystem() == this.getFileSystem() && Arrays.equals(this.pathParts, p.pathParts);
+            return p.getFileSystem() == this.getFileSystem() && this.absolute == p.absolute && Arrays.equals(this.pathParts, p.pathParts);
         }
         return false;
     }
@@ -225,6 +290,6 @@ public class UnionPath implements Path {
 
     @Override
     public String toString() {
-        return String.join(fileSystem.getSeparator(), this.pathParts);
+        return (this.absolute ? fileSystem.getSeparator() : "") + String.join(fileSystem.getSeparator(), this.pathParts);
     }
 }
