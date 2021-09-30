@@ -7,6 +7,7 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.function.IntBinaryOperator;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class UnionPath implements Path {
@@ -23,7 +24,7 @@ public class UnionPath implements Path {
             this.absolute = false;
             this.pathParts = new String[0];
         } else {
-            final var longstring = String.join(fileSystem.getSeparator(), pathParts);
+            final var longstring = Arrays.stream(pathParts).filter(part -> !part.isEmpty()).collect(Collectors.joining(this.getFileSystem().getSeparator()));
             this.absolute = longstring.startsWith(this.getFileSystem().getSeparator());
             this.pathParts = getPathParts(longstring);
         }
@@ -49,8 +50,10 @@ public class UnionPath implements Path {
         var sep = "(?:" + Pattern.quote(this.getFileSystem().getSeparator()) + ")";
         String pathname = longstring
                 .replace("\\", this.getFileSystem().getSeparator())
-                // Replace double separators with single and remove separators from start and end of longstring
-                .replaceAll("(?:(?:" + sep + "+(?=" + sep + "))|^" + sep + "*|" + sep + "*$)", "");
+                // remove separators from start and end of longstring
+                .replaceAll("^" + sep + "*|" + sep + "*$", "")
+                // Remove duplicate separators
+                .replaceAll(sep + "+(?=" + sep + ")", "");
         if (pathname.isEmpty())
             return new String[0];
         else
@@ -69,17 +72,23 @@ public class UnionPath implements Path {
 
     @Override
     public Path getRoot() {
-        if (this.absolute)
-            return this.fileSystem.getRoot();
-        return null;
+        // Found nothing in the docs that say a non-absolute path can't have a root
+        // although this is uncommon. However, other stuff relies on it so leave it
+//        if (!this.absolute)
+//            return null;
+        return this.fileSystem.getRoot();
     }
-
-
+    
     @Override
     public Path getFileName() {
-        return this.pathParts.length > 0 ? new UnionPath(this.getFileSystem(), false, this.pathParts[this.pathParts.length-1]) : null;
+        if (this.pathParts.length > 0) {
+            return new UnionPath(this.getFileSystem(), false, this.pathParts[this.pathParts.length - 1]);
+        } else if (this.absolute) {
+            return null;
+        } else {
+            return new UnionPath(this.fileSystem, false);
+        }
     }
-
 
     @Override
     public Path getParent() {
@@ -103,10 +112,12 @@ public class UnionPath implements Path {
 
     @Override
     public UnionPath subpath(final int beginIndex, final int endIndex) {
+        if (!this.absolute && this.pathParts.length == 0 && beginIndex == 0 && endIndex == 1)
+            return new UnionPath(this.fileSystem, false);
         if (beginIndex < 0 || beginIndex > this.pathParts.length - 1 || endIndex < 0 || endIndex > this.pathParts.length || beginIndex >= endIndex) {
             throw new IllegalArgumentException("Out of range "+beginIndex+" to "+endIndex+" for length "+this.pathParts.length);
         }
-        if (beginIndex == 0 && endIndex == this.pathParts.length) {
+        if (!this.absolute && beginIndex == 0 && endIndex == this.pathParts.length) {
             return this;
         }
         return new UnionPath(this.fileSystem, false, Arrays.copyOfRange(this.pathParts, beginIndex, endIndex));
@@ -159,7 +170,7 @@ public class UnionPath implements Path {
                 case ".":
                     break;
                 case "..":
-                    if (normpath.isEmpty()) {
+                    if (normpath.isEmpty() || normpath.getLast().equals("..")) {
                         // .. on an empty path is allowed, so keep it
                         normpath.addLast(pathPart);
                     } else {
