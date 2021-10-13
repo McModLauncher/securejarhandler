@@ -205,8 +205,6 @@ public class TestUnionPath {
         // getFileName
         if (names.length > 0) {
             assertEquals(fs.getPath(names[names.length - 1]), path.getFileName());
-        } else if (path.isAbsolute()) {
-            assertNull(path.getFileName());
         } else {
             assertEquals(fs.getPath(""), path.getFileName());
         }

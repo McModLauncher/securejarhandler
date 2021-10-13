@@ -74,8 +74,8 @@ public class UnionPath implements Path {
     public Path getRoot() {
         // Found nothing in the docs that say a non-absolute path can't have a root
         // although this is uncommon. However, other stuff relies on it so leave it
-//        if (!this.absolute)
-//            return null;
+        //if (!this.absolute)
+        //    return null;
         return this.fileSystem.getRoot();
     }
     
@@ -83,9 +83,10 @@ public class UnionPath implements Path {
     public Path getFileName() {
         if (this.pathParts.length > 0) {
             return new UnionPath(this.getFileSystem(), false, this.pathParts[this.pathParts.length - 1]);
-        } else if (this.absolute) {
-            return null;
         } else {
+            // normally would be null for the empty absolute path and empty string for the empty relative
+            // path. But again, very much stuff relies on it and there's no current directory for union
+            // paths, so it does not really matter.
             return new UnionPath(this.fileSystem, false);
         }
     }

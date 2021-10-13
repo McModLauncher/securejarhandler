@@ -211,7 +211,7 @@ public class Jar implements SecureJar {
                     .filter(path->!path.getName(0).toString().equals("META-INF"))
                     .filter(path->path.getFileName().toString().endsWith(".class"))
                     .filter(Files::isRegularFile)
-                    .map(path->path.subpath(0, path.getNameCount()-1))
+                    .map(Path::getParent)
                     .map(path->path.toString().replace('/','.'))
                     .filter(pkg->pkg.length()!=0)
                     .collect(toSet());
@@ -248,7 +248,7 @@ public class Jar implements SecureJar {
 
     @Override
     public Path getRootPath() {
-        return filesystem.getRoot();
+        return filesystem.getPath("");
     }
 
     @Override
