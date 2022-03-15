@@ -114,7 +114,7 @@ public class Jar implements SecureJar {
         }
         this.isMultiRelease = Boolean.parseBoolean(getManifest().getMainAttributes().getValue("Multi-Release"));
         if (this.isMultiRelease) {
-            var vers = filesystem.getRoot().resolve("META-INF/versions");
+            var vers = filesystem.getPath("").resolve("META-INF/versions");
             try (var walk = Files.walk(vers)){
                 var allnames = walk.filter(p1 ->!p1.isAbsolute())
                         .filter(path1 -> !Files.isDirectory(path1))
@@ -206,9 +206,9 @@ public class Jar implements SecureJar {
     @Override
     public Set<String> getPackages() {
         if (this.packages == null) {
-            try (var walk = Files.walk(this.filesystem.getRoot())) {
+            try (var walk = Files.walk(this.filesystem.getPath(""))) {
                 this.packages = walk
-                    .filter(path->path.getNameCount()>0)
+                    .filter(path->path.getNameCount()>1)
                     .filter(path->!path.getName(0).toString().equals("META-INF"))
                     .filter(path->path.getFileName().toString().endsWith(".class"))
                     .filter(Files::isRegularFile)
