@@ -240,7 +240,7 @@ public class UnionFileSystem extends FileSystem {
             try (final var ds = Files.newDirectoryStream(dir, filter)) {
                 StreamSupport.stream(ds.spliterator(), false)
                         .filter(p->testFilter(p, bp))
-                        .map(other -> (isSimple ? other : bp.relativize(other)).toString())
+                        .map(other -> (isSimple ? other : bp.toAbsolutePath().relativize(other.toAbsolutePath())).toString())
                         .map(this::getPath)
                         .forEachOrdered(allpaths::add);
             }
@@ -269,7 +269,7 @@ public class UnionFileSystem extends FileSystem {
 
         var sPath = path.toString();
         if (path.getFileSystem() == basePath.getFileSystem()) // Directories, zips will be different file systems.
-            sPath = basePath.relativize(path).toString().replace('\\', '/');
+            sPath = basePath.toAbsolutePath().relativize(path.toAbsolutePath()).toString().replace('\\', '/');
         if (Files.isDirectory(path))
             sPath += '/';
         if (sPath.length() > 1 && sPath.startsWith("/"))

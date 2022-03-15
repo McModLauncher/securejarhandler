@@ -200,8 +200,32 @@ public class TestUnionPath {
         assertEquals(abs123, abs0.resolve(rel123));
         assertEquals(abs123, abs1.resolve(rel2).resolve(rel3));
         assertEquals(abs32, abs3.resolve(rel0).resolve(rel2));
+
+        assertThrows(IllegalArgumentException.class, () -> rel1.relativize(abs123));
+        assertThrows(IllegalArgumentException.class, () -> abs1.relativize(rel123));
         
-        // relativize is tested in TestUnionFS
+        assertEquals(fs.getPath("two/three"), rel1.relativize(rel123));
+        assertEquals(fs.getPath("../.."), rel123.relativize(rel1));
+        assertEquals(rel1, rel1.relativize(fs.getPath("one/one")));
+        assertEquals(rel3, rel1.relativize(rel13));
+        assertEquals(fs.getPath("../../one/one"), rel32.relativize(fs.getPath("one/one")));
+        assertEquals(fs.getPath("../../one"), rel123.relativize(fs.getPath("one/one")));
+        
+        assertEquals(fs.getPath("two/three"), abs1.relativize(abs123));
+        assertEquals(fs.getPath("../.."), abs123.relativize(abs1));
+        assertEquals(rel1, abs1.relativize(fs.getPath("/one/one")));
+        assertEquals(rel3, abs1.relativize(abs13));
+        assertEquals(fs.getPath("../../one/one"), abs32.relativize(fs.getPath("/one/one")));
+        assertEquals(fs.getPath("../../one"), abs123.relativize(fs.getPath("/one/one")));
+        
+        // getRoot
+        assertNull(rel0.getRoot());
+        assertNull(rel123.getRoot());
+        assertNull(relUpUp1.getRoot());
+
+        assertEquals(abs0, abs0.getRoot());
+        assertEquals(abs0, abs123.getRoot());
+        assertEquals(abs0, absUpUp1.getRoot());
     }
     
     private static void testNameParts(FileSystem fs, Path path, String... names) {
