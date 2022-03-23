@@ -48,6 +48,8 @@ public class ModuleClassLoader extends ClassLoader {
         for (var rm : configuration.modules()) {
             for (var other : rm.reads()) {
                 Supplier<ClassLoader> findClassLoader = ()->{
+                    // Loading a class requires its module to be part of resolvedRoots
+                    // If it's not, we delegate loading to its module's classloader
                     if (!this.resolvedRoots.containsKey(other.name())) {
                         return parentLayers.stream()
                                 .filter(l -> l.configuration() == other.configuration())
