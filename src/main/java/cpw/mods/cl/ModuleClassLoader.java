@@ -238,7 +238,7 @@ public class ModuleClassLoader extends ClassLoader {
                 bytes = loadFromModule(classNameToModuleName(name), (reader, ref)->this.getClassBytes(reader, ref, name));
             } else {
                 var cname = name.replace('.','/')+".class";
-                try (var is = this.parentLoaders.getOrDefault(pname, ClassLoader.getPlatformClassLoader()).getResourceAsStream(cname)) {
+                try (var is = this.parentLoaders.getOrDefault(pname, ClassLoader.getSystemClassLoader()).getResourceAsStream(cname)) {
                     if (is != null)
                         bytes = is.readAllBytes();
                 }
