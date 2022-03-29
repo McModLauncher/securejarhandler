@@ -230,21 +230,22 @@ public class ModuleClassLoader extends ClassLoader {
         }
     }
 
-    protected byte[] getMaybeTransformedClassBytes(final String name, final String context) {
+    protected byte[] getMaybeTransformedClassBytes(final String name, final String context) throws ClassNotFoundException {
         byte[] bytes = new byte[0];
         try {
             final var pname = name.substring(0, name.lastIndexOf('.'));
             if (this.packageLookup.containsKey(pname)) {
                 bytes = loadFromModule(classNameToModuleName(name), (reader, ref)->this.getClassBytes(reader, ref, name));
-            } else {
+            } else if (this.parentLoaders.containsKey(pname)) {
                 var cname = name.replace('.','/')+".class";
-                try (var is = this.parentLoaders.getOrDefault(pname, ClassLoader.getSystemClassLoader()).getResourceAsStream(cname)) {
+                try (var is = this.parentLoaders.get(pname).getResourceAsStream(cname)) {
                     if (is != null)
                         bytes = is.readAllBytes();
                 }
             }
         } catch (IOException ignored) {
         }
+        if (bytes.length == 0) throw new ClassNotFoundException(name);
         return maybeTransformClassBytes(bytes, name, context);
     }
 
