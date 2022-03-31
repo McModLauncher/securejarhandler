@@ -43,8 +43,8 @@ public class Jar implements SecureJar {
         return this.filesystem.getRootDirectories().iterator().next().toUri();
     }
 
-    public ModuleDescriptor computeDescriptor() {
-        return metadata.descriptor();
+    public ModuleDescriptor computeDescriptor(Set<String> additionalPackages) {
+        return metadata.descriptor(additionalPackages);
     }
 
     @Override
@@ -67,7 +67,6 @@ public class Jar implements SecureJar {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public Jar(final Supplier<Manifest> defaultManifest, final Function<SecureJar, JarMetadata> metadataFunction, final BiPredicate<String, String> pathfilter, final Path... paths) {
         var validPaths = Arrays.stream(paths).filter(Files::exists).toArray(Path[]::new);
         if (validPaths.length == 0)

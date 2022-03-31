@@ -9,11 +9,12 @@ import java.util.Set;
 
 public record SimpleJarMetadata(String name, String version, Set<String> pkgs, List<SecureJar.Provider> providers) implements JarMetadata {
     @Override
-    public ModuleDescriptor descriptor() {
+    public ModuleDescriptor descriptor(Set<String> additionalPackages) {
         var bld = ModuleDescriptor.newAutomaticModule(name());
         if (version()!=null)
             bld.version(version());
         bld.packages(pkgs());
+        bld.packages(additionalPackages);
         providers.stream().filter(p->!p.providers().isEmpty()).forEach(p->bld.provides(p.serviceName(), p.providers()));
         return bld.build();
     }
