@@ -6,7 +6,6 @@ import cpw.mods.util.LambdaExceptionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
@@ -18,15 +17,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class JarModuleFinder implements ModuleFinder {
-    private final SecureJar[] jars;
     private final Map<String, ModuleReference> moduleReferenceMap;
 
-    JarModuleFinder(final SecureJar... jars) {
-        this.jars = jars;
-        record ref(SecureJar jar, ModuleReference ref) {}
+    JarModuleFinder(final Map<String, Set<String>> additionalPackages, final SecureJar... jars) {
         this.moduleReferenceMap = Arrays.stream(jars)
-                .map(jar->new ref(jar, new JarModuleReference((Jar)jar)))
-                .collect(Collectors.toMap(r->r.jar.name(), r->r.ref, (r1, r2)->r1));
+                .collect(Collectors.toMap(SecureJar::name, jar -> new JarModuleReference((Jar)jar, additionalPackages.getOrDefault(jar.name(), Set.of())), (j1, j2) -> j1));
     }
 
     @Override
@@ -38,16 +33,20 @@ public class JarModuleFinder implements ModuleFinder {
     public Set<ModuleReference> findAll() {
         return new HashSet<>(moduleReferenceMap.values());
     }
+    
+    public static JarModuleFinder of(final SecureJar... jars) {
+        return of(Map.of(), jars);
+    }
 
-    public static JarModuleFinder of(SecureJar... jars) {
-        return new JarModuleFinder(jars);
+    public static JarModuleFinder of(final Map<String, Set<String>> additionalPackages, final SecureJar... jars) {
+        return new JarModuleFinder(additionalPackages, jars);
     }
 
     static class JarModuleReference extends ModuleReference {
         private final Jar jar;
 
-        JarModuleReference(final Jar jar) {
-            super(jar.computeDescriptor(), jar.getURI());
+        JarModuleReference(final Jar jar, final Set<String> additionalPackages) {
+            super(jar.computeDescriptor(additionalPackages), jar.getURI());
             this.jar = jar;
         }
 

@@ -18,16 +18,16 @@ import java.util.Set;
 
 
 public class ModuleJarMetadata implements JarMetadata {
-    private final ModuleDescriptor descriptor;
+    private final ModFileVisitor mfv;
 
     public ModuleJarMetadata(final URI uri, final Set<String> packages) {
         try (var is = Files.newInputStream(Path.of(uri))) {
             ClassReader cr = new ClassReader(is);
             var mcv = new ModuleClassVisitor();
             cr.accept(mcv, ClassReader.SKIP_CODE);
-            mcv.mfv().packages().addAll(packages);
-            mcv.mfv().builder().packages(mcv.mfv.packages());
-            descriptor = mcv.mfv().builder().build();
+            mfv = mcv.mfv();
+            mfv.packages().addAll(packages);
+            mfv.builder().packages(mfv.packages());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -51,11 +51,15 @@ public class ModuleJarMetadata implements JarMetadata {
         }
     }
     private class ModFileVisitor extends ModuleVisitor {
+        private final String name;
+        private final String version;
         private final ModuleDescriptor.Builder builder;
         private final Set<String> packages = new HashSet<>();
 
         public ModFileVisitor(final String name, final int access, final String version) {
             super(Opcodes.ASM9);
+            this.name = name;
+            this.version = version;
             builder = ModuleDescriptor.newOpenModule(name);
             if (version != null) builder.version(version);
         }
@@ -116,6 +120,14 @@ public class ModuleJarMetadata implements JarMetadata {
             builder.uses(service.replace('/','.'));
         }
 
+        String name() {
+            return name;
+        }
+        
+        String version() {
+            return version;
+        }
+        
         ModuleDescriptor.Builder builder() {
             return builder;
         }
@@ -126,16 +138,16 @@ public class ModuleJarMetadata implements JarMetadata {
     }
     @Override
     public String name() {
-        return descriptor.name();
+        return mfv.name();
     }
 
     @Override
     public String version() {
-        return descriptor.version().toString();
+        return mfv.version();
     }
 
     @Override
-    public ModuleDescriptor descriptor() {
-        return descriptor;
+    public ModuleDescriptor descriptor(Set<String> additionalPackages) {
+        return mfv.builder().packages(additionalPackages).build();
     }
 }

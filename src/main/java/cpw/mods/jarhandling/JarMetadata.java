@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 public interface JarMetadata {
     String name();
     String version();
-    ModuleDescriptor descriptor();
+    ModuleDescriptor descriptor(Set<String> additionalPackages);
     // ALL from jdk.internal.module.ModulePath.java
     Pattern DASH_VERSION = Pattern.compile("-([.\\d]+)");
     Pattern NON_ALPHANUM = Pattern.compile("[^A-Za-z0-9]");
