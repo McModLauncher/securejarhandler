@@ -336,7 +336,7 @@ public class UnionFileSystem extends FileSystem {
             try (final var ds = Files.newDirectoryStream(dir, filter)) {
                 StreamSupport.stream(ds.spliterator(), false)
                         .filter(p->testFilter(p, bp))
-                        .map(other -> StreamSupport.stream(Spliterators.spliteratorUnknownSize((isSimple ? other : bp.relativize(other)).iterator(), Spliterator.ORDERED), false)
+                        .map(other -> StreamSupport.stream(Spliterators.spliteratorUnknownSize((isSimple ? other : bp.toAbsolutePath().relativize(other.toAbsolutePath())).iterator(), Spliterator.ORDERED), false)
                                 .map(Path::getFileName).map(Path::toString).toArray(String[]::new))
                         .map(this::fastPath)
                         .forEachOrdered(allpaths::add);
@@ -366,7 +366,7 @@ public class UnionFileSystem extends FileSystem {
 
         var sPath = path.toString();
         if (path.getFileSystem() == basePath.getFileSystem()) // Directories, zips will be different file systems.
-            sPath = basePath.relativize(path).toString().replace('\\', '/');
+            sPath = basePath.toAbsolutePath().relativize(path.toAbsolutePath()).toString().replace('\\', '/');
         if (Files.isDirectory(path))
             sPath += '/';
         if (sPath.length() > 1 && sPath.startsWith("/"))
