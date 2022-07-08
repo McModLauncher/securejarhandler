@@ -3,17 +3,24 @@ package cpw.mods.niofs.union;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.List;
+import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.function.IntBinaryOperator;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class UnionPath implements Path {
     private final UnionFileSystem fileSystem;
     private final boolean absolute;
-    private final boolean empty;
     private final String[] pathParts;
     
     // Store the normalized path after it has been created first
@@ -23,19 +30,25 @@ public class UnionPath implements Path {
         this.fileSystem = fileSystem;
         if (pathParts.length == 0) {
             this.absolute = false;
-            this.pathParts = new String[]{ "" };
-            this.empty = true;
+            this.pathParts = new String[0];
         } else {
-            final var longstring = Arrays.stream(pathParts).filter(part -> !part.isEmpty()).collect(Collectors.joining(this.getFileSystem().getSeparator()));
-            this.absolute = longstring.startsWith(this.getFileSystem().getSeparator());
-            this.pathParts = getPathParts(this.absolute, longstring);
-            this.empty = !this.absolute && this.pathParts.length == 1 && this.pathParts[0].isEmpty();
+            StringBuilder joiner = new StringBuilder();
+            for (int i = 0; i < pathParts.length; i++) {
+                final String element = pathParts[i];
+                if (!element.isEmpty()) {
+                    joiner.append(element);
+                    if (i<pathParts.length-1) joiner.append(UnionFileSystem.SEP_STRING);
+                }
+            }
+            final var longstring = joiner.toString();
+            this.absolute = longstring.startsWith(UnionFileSystem.SEP_STRING);
+            this.pathParts = getPathParts(longstring);
         }
         this.normalized = null;
     }
 
     // Private constructor only for known correct split and extra value for absolute
-    private UnionPath(final UnionFileSystem fileSystem, boolean absolute, final String... pathParts) {
+    UnionPath(final UnionFileSystem fileSystem, boolean absolute, final String... pathParts) {
         this(fileSystem, absolute, false, pathParts);
     }
     
@@ -43,25 +56,29 @@ public class UnionPath implements Path {
         this.fileSystem = fileSystem;
         this.absolute = absolute;
         this.pathParts = pathParts;
-        this.empty = !this.absolute && this.pathParts.length == 1 && this.pathParts[0].isEmpty();
         if (isNormalized)
             this.normalized = this;
         else
             this.normalized = null;
     }
 
-    private String[] getPathParts(final boolean isAbsolute, final String longstring) {
-        var sep = "(?:" + Pattern.quote(this.getFileSystem().getSeparator()) + ")";
-        String pathname = longstring
-                .replace("\\", this.getFileSystem().getSeparator())
-                // remove separators from start and end of longstring
-                .replaceAll("^" + sep + "*|" + sep + "*$", "")
-                // Remove duplicate separators
-                .replaceAll(sep + "+(?=" + sep + ")", "");
-        if (pathname.isEmpty())
-            return isAbsolute ? new String[0] : new String[]{ "" };
-        else
-            return pathname.split(this.getFileSystem().getSeparator());
+    private String[] getPathParts(final String longstring) {
+        var clean = longstring.replace('\\', '/');
+        int startIndex = 0;
+        List<String> parts = new ArrayList<>();
+        while (startIndex != longstring.length()) {
+            int index = clean.indexOf('/', startIndex);
+            if (index == -1) {
+                parts.add(clean.substring(startIndex));
+                break;
+            }
+            // Skips double slash and slash and start/end
+            if (index != startIndex) {
+                parts.add(clean.substring(startIndex, index));
+            }
+            startIndex = (index + 1);
+        }
+        return parts.toArray(String[]::new);
     }
 
     @Override
@@ -76,25 +93,28 @@ public class UnionPath implements Path {
 
     @Override
     public Path getRoot() {
-        if (!this.absolute)
-            return null;
+        // Found nothing in the docs that say a non-absolute path can't have a root
+        // although this is uncommon. However, other stuff relies on it so leave it
+        //if (!this.absolute)
+        //    return null;
         return this.fileSystem.getRoot();
     }
     
     @Override
     public Path getFileName() {
-        if (this.empty) {
-            return null;
-        } else if (this.pathParts.length > 0) {
+        if (this.pathParts.length > 0) {
             return new UnionPath(this.getFileSystem(), false, this.pathParts[this.pathParts.length - 1]);
         } else {
-            return this.absolute ? null : new UnionPath(this.fileSystem, false);
+            // normally would be null for the empty absolute path and empty string for the empty relative
+            // path. But again, very much stuff relies on it and there's no current directory for union
+            // paths, so it does not really matter.
+            return new UnionPath(this.fileSystem, false);
         }
     }
 
     @Override
     public Path getParent() {
-        if (this.pathParts.length > 1 || (this.absolute && this.pathParts.length == 1)) {
+        if (this.pathParts.length > 0) {
             return new UnionPath(this.fileSystem, this.absolute, Arrays.copyOf(this.pathParts,this.pathParts.length - 1));
         } else {
             return null;
@@ -172,10 +192,10 @@ public class UnionPath implements Path {
                 case ".":
                     break;
                 case "..":
-                    if (!this.absolute && (normpath.isEmpty() || normpath.getLast().equals(".."))) {
-                        // .. on an empty path is allowed as long as it is not absolute, so keep it
+                    if (normpath.isEmpty() || normpath.getLast().equals("..")) {
+                        // .. on an empty path is allowed, so keep it
                         normpath.addLast(pathPart);
-                    } else if (!normpath.isEmpty()) {
+                    } else {
                         normpath.removeLast();
                     }
                     break;
@@ -191,11 +211,8 @@ public class UnionPath implements Path {
     @Override
     public Path resolve(final Path other) {
         if (other instanceof UnionPath path) {
-            if (path.isAbsolute() || this.empty) {
+            if (path.isAbsolute()) {
                 return path;
-            }
-            if (path.empty) {
-                return this;
             }
             String[] mergedParts = new String[this.pathParts.length + path.pathParts.length];
             System.arraycopy(this.pathParts, 0, mergedParts, 0, this.pathParts.length);
@@ -210,7 +227,11 @@ public class UnionPath implements Path {
         if (other.getFileSystem()!=this.getFileSystem()) throw new IllegalArgumentException("Wrong filesystem");
         if (other instanceof UnionPath p) {
             if (this.absolute != p.absolute) {
-                throw new IllegalArgumentException("Different types of path");
+                // Should not be allowed but union fs relies on it
+                // also there is no such concept of a current directory for union paths
+                // meaning absolute and relative paths should have the same effect,
+                // so we just allow this.
+                //throw new IllegalArgumentException("Different types of path");
             }
             var length = Math.min(this.pathParts.length, p.pathParts.length);
             int i = 0;
@@ -302,6 +323,6 @@ public class UnionPath implements Path {
 
     @Override
     public String toString() {
-        return (this.absolute ? fileSystem.getSeparator() : "") + String.join(fileSystem.getSeparator(), this.pathParts);
+        return (this.absolute ? UnionFileSystem.SEP_STRING : "") + String.join(UnionFileSystem.SEP_STRING, this.pathParts);
     }
 }
