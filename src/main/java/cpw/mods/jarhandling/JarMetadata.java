@@ -75,8 +75,12 @@ public interface JarMetadata {
         }
 
         // fallback parsing
-        var fn = path.getFileName().toString();
-        fn = fn.contains(".") ? fn.substring(0, fn.lastIndexOf('.')) : fn; // strip extension if possible
+        var fn = path.getFileName().toString();     
+        var lastDot = fn.lastIndexOf('.');
+        if(lastDot > 0) {
+            fn = fn.substring(0, lastDot); // strip extension if possible
+        }
+       
         var mat = DASH_VERSION.matcher(fn);
         if (mat.find()) {
             var ver = ModuleDescriptor.Version.parse(fn.substring(mat.start() + 1)).toString();
