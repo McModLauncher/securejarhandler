@@ -76,7 +76,7 @@ public interface JarMetadata {
 
         // fallback parsing
         var fn = path.getFileName().toString();
-        fn = fn.substring(0, fn.length()-4); // no .jar extension
+        fn = fn.contains(".") ? fn.substring(0, fn.lastIndexOf('.')) : fn; // strip extension if possible
         var mat = DASH_VERSION.matcher(fn);
         if (mat.find()) {
             var ver = ModuleDescriptor.Version.parse(fn.substring(mat.start() + 1)).toString();
