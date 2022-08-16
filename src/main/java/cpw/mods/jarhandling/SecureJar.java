@@ -32,6 +32,12 @@ public interface SecureJar {
         CodeSigner[] verifyAndGetSigners(String cname, byte[] bytes);
     }
 
+    @Deprecated
+    Manifest getManifest();
+
+    @Deprecated
+    Optional<URI> findFile(String name);
+
     ModuleDataProvider moduleDataProvider();
 
     Path getPrimaryPath();

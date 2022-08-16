@@ -61,6 +61,7 @@ public class Jar implements SecureJar {
         return filesystem.getPrimaryPath();
     }
 
+    @Override
     public Optional<URI> findFile(final String name) {
         var rel = filesystem.getPath(name);
         if (this.nameOverrides.containsKey(rel)) {
@@ -143,6 +144,7 @@ public class Jar implements SecureJar {
         this.metadata = metadataFunction.apply(this);
     }
 
+    @Override
     public Manifest getManifest() {
         return manifest;
     }
