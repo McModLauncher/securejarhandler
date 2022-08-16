@@ -33,10 +33,14 @@ public interface SecureJar {
     }
 
     @Deprecated
-    Manifest getManifest();
+    default Manifest getManifest() {
+        return this.moduleDataProvider().getManifest();
+    }
 
     @Deprecated
-    Optional<URI> findFile(String name);
+    default Optional<URI> findFile(String name) {
+        return this.moduleDataProvider().findFile(name);
+    }
 
     ModuleDataProvider moduleDataProvider();
 
