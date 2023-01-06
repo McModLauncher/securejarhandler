@@ -77,7 +77,7 @@ public interface JarMetadata {
         // fallback parsing
         var fn = path.getFileName().toString();     
         var lastDot = fn.lastIndexOf('.');
-        if(lastDot > 0) {
+        if (lastDot > 0) {
             fn = fn.substring(0, lastDot); // strip extension if possible
         }
        
