@@ -3,11 +3,19 @@ package cpw.mods.niofs.union;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.List;
+import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.function.IntBinaryOperator;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class UnionPath implements Path {
@@ -24,15 +32,23 @@ public class UnionPath implements Path {
             this.absolute = false;
             this.pathParts = new String[0];
         } else {
-            final var longstring = Arrays.stream(pathParts).filter(part -> !part.isEmpty()).collect(Collectors.joining(this.getFileSystem().getSeparator()));
-            this.absolute = longstring.startsWith(this.getFileSystem().getSeparator());
+            StringBuilder joiner = new StringBuilder();
+            for (int i = 0; i < pathParts.length; i++) {
+                final String element = pathParts[i];
+                if (!element.isEmpty()) {
+                    joiner.append(element);
+                    if (i<pathParts.length-1) joiner.append(UnionFileSystem.SEP_STRING);
+                }
+            }
+            final var longstring = joiner.toString();
+            this.absolute = longstring.startsWith(UnionFileSystem.SEP_STRING);
             this.pathParts = getPathParts(longstring);
         }
         this.normalized = null;
     }
 
     // Private constructor only for known correct split and extra value for absolute
-    private UnionPath(final UnionFileSystem fileSystem, boolean absolute, final String... pathParts) {
+    UnionPath(final UnionFileSystem fileSystem, boolean absolute, final String... pathParts) {
         this(fileSystem, absolute, false, pathParts);
     }
     
@@ -47,17 +63,22 @@ public class UnionPath implements Path {
     }
 
     private String[] getPathParts(final String longstring) {
-        var sep = "(?:" + Pattern.quote(this.getFileSystem().getSeparator()) + ")";
-        String pathname = longstring
-                .replace("\\", this.getFileSystem().getSeparator())
-                // remove separators from start and end of longstring
-                .replaceAll("^" + sep + "*|" + sep + "*$", "")
-                // Remove duplicate separators
-                .replaceAll(sep + "+(?=" + sep + ")", "");
-        if (pathname.isEmpty())
-            return new String[0];
-        else
-            return pathname.split(this.getFileSystem().getSeparator());
+        var clean = longstring.replace('\\', '/');
+        int startIndex = 0;
+        List<String> parts = new ArrayList<>();
+        while (startIndex != longstring.length()) {
+            int index = clean.indexOf('/', startIndex);
+            if (index == -1) {
+                parts.add(clean.substring(startIndex));
+                break;
+            }
+            // Skips double slash and slash and start/end
+            if (index != startIndex) {
+                parts.add(clean.substring(startIndex, index));
+            }
+            startIndex = (index + 1);
+        }
+        return parts.toArray(String[]::new);
     }
 
     @Override
@@ -302,6 +323,6 @@ public class UnionPath implements Path {
 
     @Override
     public String toString() {
-        return (this.absolute ? fileSystem.getSeparator() : "") + String.join(fileSystem.getSeparator(), this.pathParts);
+        return (this.absolute ? UnionFileSystem.SEP_STRING : "") + String.join(UnionFileSystem.SEP_STRING, this.pathParts);
     }
 }
