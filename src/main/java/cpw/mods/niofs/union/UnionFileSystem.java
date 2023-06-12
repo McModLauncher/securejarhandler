@@ -6,6 +6,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.FileChannel;
 import java.nio.channels.InterruptibleChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessMode;
@@ -114,7 +115,7 @@ public class UnionFileSystem extends FileSystem {
         return this.key;
     }
 
-    private record EmbeddedFileSystemMetadata(Path path, FileSystem fs) {}
+    private record EmbeddedFileSystemMetadata(Path path, FileSystem fs, SeekableByteChannel fsCh) {}
 
     public UnionFileSystem(final UnionFileSystemProvider provider, final BiPredicate<String, String> pathFilter, final String key, final Path... basepaths) {
         this.pathFilter = pathFilter;
@@ -133,9 +134,9 @@ public class UnionFileSystem extends FileSystem {
     private static Optional<EmbeddedFileSystemMetadata> openFileSystem(final Path path) {
         try {
             var zfs = FileSystems.newFileSystem(path);
-            Object fci = ZIPFS_CH.invoke(zfs);
+            FileChannel fci = (FileChannel) ZIPFS_CH.invoke(zfs);
             FCI_UNINTERUPTIBLE.invoke(fci);
-            return Optional.of(new EmbeddedFileSystemMetadata(path, zfs));
+            return Optional.of(new EmbeddedFileSystemMetadata(path, zfs, fci));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (Throwable t) {
@@ -225,7 +226,7 @@ public class UnionFileSystem extends FileSystem {
         try {
             if (path.getFileSystem() == FileSystems.getDefault() && !path.toFile().exists()) {
                 return Optional.empty();
-            } else if (path.getFileSystem().provider().getScheme().equals("jar") && !zipFsExists(path)) {
+            } else if (path.getFileSystem().provider().getScheme().equals("jar") && !zipFsExists(this, path)) {
                 return Optional.empty();
             } else {
                 return Optional.of(path.getFileSystem().provider().readAttributes(path, BasicFileAttributes.class));
@@ -243,8 +244,9 @@ public class UnionFileSystem extends FileSystem {
                 .findFirst();
     }
 
-    private static boolean zipFsExists(Path path) {
+    private static boolean zipFsExists(UnionFileSystem ufs, Path path) {
         try {
+            if (Optional.ofNullable(ufs.embeddedFileSystems.get(path.getFileSystem())).filter(efs->!efs.fsCh.isOpen()).isPresent()) throw new IllegalStateException("The zip file has closed!");
             return (boolean) ZIPFS_EXISTS.invoke(path);
         } catch (Throwable t) {
             throw new IllegalStateException(t);
@@ -259,7 +261,7 @@ public class UnionFileSystem extends FileSystem {
                         return Optional.of(realPath);
                     }
                 } else if (realPath.getFileSystem().provider().getScheme().equals("jar")) {
-                    if (zipFsExists(realPath)) {
+                    if (zipFsExists(this, realPath)) {
                         return Optional.of(realPath);
                     }
                 } else if (Files.exists(realPath)) {
@@ -355,7 +357,7 @@ public class UnionFileSystem extends FileSystem {
                 continue;
             } else if (dir.getFileSystem() == FileSystems.getDefault() && !dir.toFile().exists()) {
                 continue;
-            } else if (dir.getFileSystem().provider().getScheme() == "jar" && !zipFsExists(dir)) {
+            } else if (dir.getFileSystem().provider().getScheme() == "jar" && !zipFsExists(this, dir)) {
                 continue;
             } else if (Files.notExists(dir)) {
                 continue;
