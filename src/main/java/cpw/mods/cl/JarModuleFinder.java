@@ -21,8 +21,6 @@ public class JarModuleFinder implements ModuleFinder {
     private final Map<String, ModuleReference> moduleReferenceMap;
 
     JarModuleFinder(final SecureJar... jars) {
-        long startTime = System.nanoTime();
-
         record ref(SecureJar.ModuleDataProvider jar, ModuleReference ref) {}
         this.moduleReferenceMap = Arrays.stream(jars)
                 // Computing the module descriptor can be slow so do it in parallel!
@@ -30,9 +28,6 @@ public class JarModuleFinder implements ModuleFinder {
                 .parallel()
                 .map(jar->new ref(jar.moduleDataProvider(), new JarModuleReference(jar.moduleDataProvider())))
                 .collect(Collectors.toMap(r->r.jar.name(), r->r.ref, (r1, r2)->r1));
-
-        long endTime = System.nanoTime();
-        System.out.println("JarModuleFinder: took " + (endTime - startTime) / 1000000 + "ms to build module references");
     }
 
     @Override

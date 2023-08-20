@@ -231,7 +231,7 @@ public class Jar implements SecureJar {
     @Override
     public Set<String> getPackages() {
         if (this.packages == null) {
-            this.packages = new HashSet<>();
+            Set<String> packages = new HashSet<>();
             try {
                 Files.walkFileTree(this.filesystem.getRoot(), new SimpleFileVisitor<>() {
                     @Override
@@ -253,6 +253,7 @@ public class Jar implements SecureJar {
                         return FileVisitResult.CONTINUE;
                     }
                 });
+                this.packages = packages;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
