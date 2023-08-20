@@ -2,7 +2,6 @@ package cpw.mods.jarhandling.impl;
 
 import cpw.mods.jarhandling.JarMetadata;
 import cpw.mods.jarhandling.SecureJar;
-import cpw.mods.jarhandling.SecureJarRuntime;
 import cpw.mods.niofs.union.UnionFileSystem;
 import cpw.mods.niofs.union.UnionFileSystemProvider;
 import cpw.mods.util.LambdaExceptionUtils;
@@ -34,19 +33,6 @@ import static java.util.stream.Collectors.*;
 public class Jar implements SecureJar {
     private static final CodeSigner[] EMPTY_CODESIGNERS = new CodeSigner[0];
     private static final UnionFileSystemProvider UFSP = (UnionFileSystemProvider) FileSystemProvider.installedProviders().stream().filter(fsp->fsp.getScheme().equals("union")).findFirst().orElseThrow(()->new IllegalStateException("Couldn't find UnionFileSystemProvider"));
-
-    private static final Set<String> ignoredRootPackages;
-    static {
-        var runtime = ServiceLoader.load(SecureJarRuntime.class).findFirst().orElse(new SecureJarRuntime() {});
-        ignoredRootPackages = runtime.ignoredRootPackages();
-        // Validate root packages
-        for (var pkg : ignoredRootPackages) {
-            if (pkg.contains(".") || pkg.contains("/")) {
-                throw new IllegalArgumentException("Invalid root package: " + pkg);
-            }
-        }
-    }
-
     private final Manifest manifest;
     private final Hashtable<String, CodeSigner[]> pendingSigners = new Hashtable<>();
     private final Hashtable<String, CodeSigner[]> verifiedSigners = new Hashtable<>();
@@ -247,7 +233,7 @@ public class Jar implements SecureJar {
 
                     @Override
                     public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) {
-                        if (path.getNameCount() > 0 && ignoredRootPackages.contains(path.getName(0).toString())) {
+                        if (path.getNameCount() > 0 && SecureJarEnvironment.isIgnoredRootPackage(path.getName(0).toString())) {
                             return FileVisitResult.SKIP_SUBTREE;
                         }
                         return FileVisitResult.CONTINUE;
