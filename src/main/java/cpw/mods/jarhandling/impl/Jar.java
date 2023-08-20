@@ -2,6 +2,7 @@ package cpw.mods.jarhandling.impl;
 
 import cpw.mods.jarhandling.JarMetadata;
 import cpw.mods.jarhandling.SecureJar;
+import cpw.mods.jarhandling.SecureJarRuntime;
 import cpw.mods.niofs.union.UnionFileSystem;
 import cpw.mods.niofs.union.UnionFileSystemProvider;
 import cpw.mods.util.LambdaExceptionUtils;
@@ -11,9 +12,12 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.module.ModuleDescriptor;
 import java.net.URI;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.spi.FileSystemProvider;
 import java.security.CodeSigner;
 import java.util.*;
@@ -30,6 +34,19 @@ import static java.util.stream.Collectors.*;
 public class Jar implements SecureJar {
     private static final CodeSigner[] EMPTY_CODESIGNERS = new CodeSigner[0];
     private static final UnionFileSystemProvider UFSP = (UnionFileSystemProvider) FileSystemProvider.installedProviders().stream().filter(fsp->fsp.getScheme().equals("union")).findFirst().orElseThrow(()->new IllegalStateException("Couldn't find UnionFileSystemProvider"));
+
+    private static final Set<String> ignoredRootPackages;
+    static {
+        var runtime = ServiceLoader.load(SecureJarRuntime.class).findFirst().orElse(new SecureJarRuntime() {});
+        ignoredRootPackages = runtime.ignoredRootPackages();
+        // Validate root packages
+        for (var pkg : ignoredRootPackages) {
+            if (pkg.contains(".") || pkg.contains("/")) {
+                throw new IllegalArgumentException("Invalid root package: " + pkg);
+            }
+        }
+    }
+
     private final Manifest manifest;
     private final Hashtable<String, CodeSigner[]> pendingSigners = new Hashtable<>();
     private final Hashtable<String, CodeSigner[]> verifiedSigners = new Hashtable<>();
@@ -214,16 +231,28 @@ public class Jar implements SecureJar {
     @Override
     public Set<String> getPackages() {
         if (this.packages == null) {
-            try (var walk = Files.walk(this.filesystem.getRoot())) {
-                this.packages = walk
-                    .filter(path->path.getNameCount()>0)
-                    .filter(path->!path.getName(0).toString().equals("META-INF"))
-                    .filter(path->path.getFileName().toString().endsWith(".class"))
-                    .filter(Files::isRegularFile)
-                    .map(Path::getParent)
-                    .map(path->path.toString().replace('/','.'))
-                    .filter(pkg->pkg.length()!=0)
-                    .collect(toSet());
+            this.packages = new HashSet<>();
+            try {
+                Files.walkFileTree(this.filesystem.getRoot(), new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                        if (file.getFileName().toString().endsWith(".class") && attrs.isRegularFile()) {
+                            var pkg = file.getParent().toString().replace('/','.');
+                            if (pkg.length() != 0) {
+                                packages.add(pkg);
+                            }
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) {
+                        if (path.getNameCount() > 0 && ignoredRootPackages.contains(path.getName(0).toString())) {
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

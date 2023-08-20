@@ -14,4 +14,5 @@ module cpw.mods.securejarhandler {
     provides java.nio.file.spi.FileSystemProvider with UnionFileSystemProvider;
     uses cpw.mods.cl.ModularURLHandler.IURLProvider;
     provides ModularURLHandler.IURLProvider with UnionURLStreamHandler;
+    uses cpw.mods.jarhandling.SecureJarRuntime;
 }
