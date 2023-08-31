@@ -21,10 +21,8 @@ public class JarModuleFinder implements ModuleFinder {
     private final Map<String, ModuleReference> moduleReferenceMap;
 
     JarModuleFinder(final SecureJar... jars) {
-        record ref(SecureJar.ModuleDataProvider jar, ModuleReference ref) {}
         this.moduleReferenceMap = Arrays.stream(jars)
-                .map(jar->new ref(jar.moduleDataProvider(), new JarModuleReference(jar.moduleDataProvider())))
-                .collect(Collectors.toMap(r->r.jar.name(), r->r.ref, (r1, r2)->r1));
+                .collect(Collectors.toMap(SecureJar::name, jar -> new JarModuleReference(jar.moduleDataProvider()), (r1, r2) -> r1));
     }
 
     @Override
