@@ -100,6 +100,7 @@ public class UnionFileSystem extends FileSystem {
     private final UnionFileSystemProvider provider;
     private final String key;
     private final List<Path> basepaths;
+    private final int lastElementIndex;
     private final BiPredicate<String, String> pathFilter;
     private final Map<Path,EmbeddedFileSystemMetadata> embeddedFileSystems;
 
@@ -125,6 +126,7 @@ public class UnionFileSystem extends FileSystem {
                 .mapToObj(i->basepaths[basepaths.length - i - 1])
                 .filter(Files::exists)
                 .toList(); // we flip the list so later elements are first in search order.
+        lastElementIndex = basepaths.length - 1;
         this.embeddedFileSystems = this.basepaths.stream().filter(path -> !Files.isDirectory(path))
                 .map(UnionFileSystem::openFileSystem)
                 .flatMap(Optional::stream)
@@ -255,8 +257,9 @@ public class UnionFileSystem extends FileSystem {
         }
     }
     private Optional<Path> findFirstFiltered(final UnionPath path) {
-        for (Path p : this.basepaths) {
-            Path realPath = toRealPath(p, path);
+        for (int i = 0; i < lastElementIndex; i++) {
+            final Path p = this.basepaths.get(i);
+            final Path realPath = toRealPath(p, path);
             if (realPath != notExistingPath && testFilter(realPath, p)) {
                 if (realPath.getFileSystem() == FileSystems.getDefault()) {
                     if (realPath.toFile().exists()) {
@@ -271,6 +274,15 @@ public class UnionFileSystem extends FileSystem {
                 }
             }
         }
+
+        if (lastElementIndex >= 0) {
+            final Path last = basepaths.get(lastElementIndex);
+            final Path realPath = toRealPath(last, path);
+            if (realPath != notExistingPath && testFilter(realPath, last)) {
+                return Optional.of(realPath);
+            }
+        }
+
         return Optional.empty();
     }
 
@@ -304,9 +316,15 @@ public class UnionFileSystem extends FileSystem {
         try {
             findFirstFiltered(p).ifPresentOrElse(path-> {
                 try {
-                    if (modes.length == 0 && path.getFileSystem() == FileSystems.getDefault()) {
-                        if (!path.toFile().exists()) {
-                            throw new UncheckedIOException(new NoSuchFileException(p.toString()));
+                    if (modes.length == 0) {
+                        if (path.getFileSystem() == FileSystems.getDefault()) {
+                            if (!path.toFile().exists()) {
+                                throw new UncheckedIOException(new NoSuchFileException(p.toString()));
+                            }
+                        } else if (path.getFileSystem().provider().getScheme().equals("jar")) {
+                            if (!zipFsExists(this, path)) {
+                                throw new UncheckedIOException(new NoSuchFileException(p.toString()));
+                            }
                         }
                     } else {
                         path.getFileSystem().provider().checkAccess(path, modes);
@@ -359,7 +377,7 @@ public class UnionFileSystem extends FileSystem {
                 continue;
             } else if (dir.getFileSystem() == FileSystems.getDefault() && !dir.toFile().exists()) {
                 continue;
-            } else if (dir.getFileSystem().provider().getScheme() == "jar" && !zipFsExists(this, dir)) {
+            } else if (dir.getFileSystem().provider().getScheme().equals("jar") && !zipFsExists(this, dir)) {
                 continue;
             } else if (Files.notExists(dir)) {
                 continue;
