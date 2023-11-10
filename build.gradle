@@ -118,10 +118,12 @@ version = gradleutils.version
 logger.lifecycle('Version: ' + version)
 
 ext.asmVersion = 9.3
+ext.jbAnnotationsVersion = '22.0.0'
 dependencies {
     api("org.ow2.asm:asm:${asmVersion}")
     api("org.ow2.asm:asm-tree:${asmVersion}")
     api("org.ow2.asm:asm-commons:${asmVersion}")
+    implementation("org.jetbrains:annotations:${jbAnnotationsVersion}")
     testImplementation('org.junit.jupiter:junit-jupiter-api:5.8.+')
     testRuntimeOnly('org.junit.jupiter:junit-jupiter-engine:5.8.+')
 }

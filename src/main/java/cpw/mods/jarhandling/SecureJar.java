@@ -19,17 +19,19 @@ import java.util.function.Supplier;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
+/**
+ * A secure jar is the full definition for a module,
+ * including all its paths and code signing metadata.
+ *
+ * <p>An instance can be built with {@link SecureJarBuilder}.
+ */
 public interface SecureJar {
-    interface ModuleDataProvider {
-        String name();
-        ModuleDescriptor descriptor();
-        URI uri();
-        Optional<URI> findFile(String name);
-        Optional<InputStream> open(final String name);
-
-        Manifest getManifest();
-
-        CodeSigner[] verifyAndGetSigners(String cname, byte[] bytes);
+    /**
+     * Creates a jar from a list of paths.
+     * See {@link SecureJarBuilder} for more configuration options.
+     */
+    static SecureJar from(final Path... paths) {
+        return new SecureJarBuilder().paths(paths).build();
     }
 
     ModuleDataProvider moduleDataProvider();
@@ -46,30 +48,6 @@ public interface SecureJar {
 
     boolean hasSecurityData();
 
-    static SecureJar from(final Path... paths) {
-        return from(jar -> JarMetadata.from(jar, paths), paths);
-    }
-
-    static SecureJar from(BiPredicate<String, String> filter, final Path... paths) {
-        return from(jar->JarMetadata.from(jar, paths), filter, paths);
-    }
-
-    static SecureJar from(Function<SecureJar, JarMetadata> metadataSupplier, final Path... paths) {
-        return from(Manifest::new, metadataSupplier, paths);
-    }
-
-    static SecureJar from(Function<SecureJar, JarMetadata> metadataSupplier, BiPredicate<String, String> filter, final Path... paths) {
-        return from(Manifest::new, metadataSupplier, filter, paths);
-    }
-
-    static SecureJar from(Supplier<Manifest> defaultManifest, Function<SecureJar, JarMetadata> metadataSupplier, final Path... paths) {
-        return from(defaultManifest, metadataSupplier, null, paths);
-    }
-
-    static SecureJar from(Supplier<Manifest> defaultManifest, Function<SecureJar, JarMetadata> metadataSupplier, BiPredicate<String, String> filter, final Path... paths) {
-        return new Jar(defaultManifest, metadataSupplier, filter, paths);
-    }
-
     Set<String> getPackages();
 
     List<Provider> getProviders();
@@ -79,6 +57,18 @@ public interface SecureJar {
     Path getPath(String first, String... rest);
 
     Path getRootPath();
+
+    interface ModuleDataProvider {
+        String name();
+        ModuleDescriptor descriptor();
+        URI uri();
+        Optional<URI> findFile(String name);
+        Optional<InputStream> open(final String name);
+
+        Manifest getManifest();
+
+        CodeSigner[] verifyAndGetSigners(String cname, byte[] bytes);
+    }
 
     record Provider(String serviceName, List<String> providers) {
         public static Provider fromPath(final Path path, final BiPredicate<String, String> pkgFilter) {
@@ -98,5 +88,33 @@ public interface SecureJar {
 
     enum Status {
         NONE, INVALID, UNVERIFIED, VERIFIED
+    }
+
+    // The methods below are deprecated for removal - use SecureJarBuilder instead!
+    // TODO: add since
+
+    @Deprecated(forRemoval = true)
+    static SecureJar from(BiPredicate<String, String> filter, final Path... paths) {
+        return from(jar->JarMetadata.from(jar, paths), filter, paths);
+    }
+
+    @Deprecated(forRemoval = true)
+    static SecureJar from(Function<SecureJar, JarMetadata> metadataSupplier, final Path... paths) {
+        return from(Manifest::new, metadataSupplier, paths);
+    }
+
+    @Deprecated(forRemoval = true)
+    static SecureJar from(Function<SecureJar, JarMetadata> metadataSupplier, BiPredicate<String, String> filter, final Path... paths) {
+        return from(Manifest::new, metadataSupplier, filter, paths);
+    }
+
+    @Deprecated(forRemoval = true)
+    static SecureJar from(Supplier<Manifest> defaultManifest, Function<SecureJar, JarMetadata> metadataSupplier, final Path... paths) {
+        return from(defaultManifest, metadataSupplier, null, paths);
+    }
+
+    @Deprecated(forRemoval = true)
+    static SecureJar from(Supplier<Manifest> defaultManifest, Function<SecureJar, JarMetadata> metadataSupplier, BiPredicate<String, String> filter, final Path... paths) {
+        return new Jar(defaultManifest, metadataSupplier, filter, paths);
     }
 }
