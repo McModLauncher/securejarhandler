@@ -40,6 +40,9 @@ public interface SecureJar {
     /**
      * A {@link SecureJar} can be built from multiple paths, either to directories or to {@code .jar} archives.
      * This function returns the first of these paths, either to a directory or to an archive file.
+     *
+     * <p>This is generally used for reporting purposes,
+     * for example to obtain a human-readable single location for this jar.
      */
     Path getPrimaryPath();
 
@@ -66,6 +69,9 @@ public interface SecureJar {
 
     Path getPath(String first, String... rest);
 
+    /**
+     * {@return the root path in the jar's own filesystem}
+     */
     Path getRootPath();
 
     interface ModuleDataProvider {
@@ -80,13 +86,20 @@ public interface SecureJar {
         CodeSigner[] verifyAndGetSigners(String cname, byte[] bytes);
     }
 
+    /**
+     * Same as {@link ModuleDescriptor.Provides}, but with an exposed constructor.
+     * Use only if the {@link #fromPath} method is useful to you.
+     */
     record Provider(String serviceName, List<String> providers) {
+        /**
+         * Helper method to parse service provider implementations from a {@link Path}.
+         */
         public static Provider fromPath(final Path path, final BiPredicate<String, String> pkgFilter) {
             final var sname = path.getFileName().toString();
             try {
                 var entries = Files.readAllLines(path).stream()
                         .map(String::trim)
-                        .filter(l->l.length() > 0 && !l.startsWith("#"))
+                        .filter(l->l.length() > 0 && !l.startsWith("#")) // We support comments :)
                         .filter(p-> pkgFilter == null || pkgFilter.test(p.replace('.','/'), ""))
                         .toList();
                 return new Provider(sname, entries);

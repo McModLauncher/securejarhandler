@@ -9,10 +9,14 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -40,12 +44,14 @@ public class JarContentsImpl implements JarContents {
     // Name overrides, if the jar is a multi-release jar
     private final Map<Path, Integer> nameOverrides;
 
+    // Folders known to not contain packages
+    private final Set<String> ignoredRootPackages;
     // Cache for repeated getPackages calls
     private Set<String> packages;
     // Cache for repeated getMetaInfServices calls
     private List<SecureJar.Provider> providers;
 
-    public JarContentsImpl(Supplier<Manifest> defaultManifest, @Nullable BiPredicate<String, String> pathFilter, Path[] paths) {
+    public JarContentsImpl(Path[] paths, Supplier<Manifest> defaultManifest, String[] ignoredRootPackages, @Nullable BiPredicate<String, String> pathFilter) {
         var validPaths = Arrays.stream(paths).filter(Files::exists).toArray(Path[]::new);
         if (validPaths.length == 0)
             throw new UncheckedIOException(new IOException("Invalid paths argument, contained no existing paths: " + Arrays.toString(paths)));
@@ -54,6 +60,8 @@ public class JarContentsImpl implements JarContents {
         this.manifest = readManifestAndSigningData(defaultManifest, validPaths);
         // Read multi-release jar information
         this.nameOverrides = readMultiReleaseInfo();
+
+        this.ignoredRootPackages = Set.of(ignoredRootPackages);
     }
 
     private Manifest readManifestAndSigningData(Supplier<Manifest> defaultManifest, Path[] validPaths) {
@@ -129,16 +137,29 @@ public class JarContentsImpl implements JarContents {
     @Override
     public Set<String> getPackages() {
         if (this.packages == null) {
-            try (var walk = Files.walk(this.filesystem.getRoot())) {
-                this.packages = walk
-                        .filter(path->path.getNameCount()>0)
-                        .filter(path->!path.getName(0).toString().equals("META-INF"))
-                        .filter(path->path.getFileName().toString().endsWith(".class"))
-                        .filter(Files::isRegularFile)
-                        .map(Path::getParent)
-                        .map(path->path.toString().replace('/','.'))
-                        .filter(pkg->pkg.length()!=0)
-                        .collect(toSet());
+            Set<String> packages = new HashSet<>();
+            try {
+                Files.walkFileTree(this.filesystem.getRoot(), new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                        if (file.getFileName().toString().endsWith(".class") && attrs.isRegularFile()) {
+                            var pkg = file.getParent().toString().replace('/', '.');
+                            if (!pkg.isEmpty()) {
+                                packages.add(pkg);
+                            }
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) {
+                        if (path.getNameCount() > 0 && ignoredRootPackages.contains(path.getName(0).toString())) {
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+                this.packages = Set.copyOf(packages);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
