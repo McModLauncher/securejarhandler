@@ -1,6 +1,7 @@
 package cpw.mods.jarhandling;
 
 import cpw.mods.jarhandling.impl.Jar;
+import cpw.mods.jarhandling.impl.JarContentsImpl;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
@@ -14,7 +15,7 @@ public final class SecureJarBuilder {
     private Supplier<Manifest> defaultManifest = Manifest::new;
     @Nullable
     private BiPredicate<String, String> pathFilter = null;
-    private Function<SecureJar, JarMetadata> metadataSupplier = null;
+    private Function<JarContents, JarMetadata> metadataSupplier = JarMetadata::from;
     private Path[] paths = new Path[0];
 
     public SecureJarBuilder() {}
@@ -41,9 +42,8 @@ public final class SecureJarBuilder {
 
     /**
      * Overrides the {@link JarMetadata} for this jar.
-     * TODO: this function is
      */
-    public SecureJarBuilder metadata(Function<SecureJar, JarMetadata> metadataSupplier) {
+    public SecureJarBuilder metadata(Function<JarContents, JarMetadata> metadataSupplier) {
         Objects.requireNonNull(metadataSupplier);
 
         this.metadataSupplier = metadataSupplier;
@@ -62,10 +62,8 @@ public final class SecureJarBuilder {
      * Builds the jar.
      */
     public SecureJar build() {
-        if (metadataSupplier == null) {
-            metadataSupplier = jar -> JarMetadata.from(jar, paths);
-        }
-
-        return new Jar(defaultManifest, metadataSupplier, pathFilter, paths);
+        JarContentsImpl contents = new JarContentsImpl(defaultManifest, pathFilter, paths);
+        JarMetadata metadata = metadataSupplier.apply(contents);
+        return new Jar(contents, metadata);
     }
 }

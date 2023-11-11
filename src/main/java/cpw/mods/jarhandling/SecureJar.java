@@ -1,6 +1,7 @@
 package cpw.mods.jarhandling;
 
 import cpw.mods.jarhandling.impl.Jar;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,21 +37,30 @@ public interface SecureJar {
 
     ModuleDataProvider moduleDataProvider();
 
+    /**
+     * A {@link SecureJar} can be built from multiple paths, either to directories or to {@code .jar} archives.
+     * This function returns the first of these paths, either to a directory or to an archive file.
+     */
     Path getPrimaryPath();
 
+    /**
+     * {@return the signers of the manifest, or {@code null} if the manifest is not signed}
+     */
+    @Nullable
     CodeSigner[] getManifestSigners();
 
     Status verifyPath(Path path);
 
     Status getFileStatus(String name);
 
+    @Nullable
     Attributes getTrustedManifestEntries(String name);
 
     boolean hasSecurityData();
 
-    Set<String> getPackages();
-
-    List<Provider> getProviders();
+    default Set<String> getPackages() {
+        return moduleDataProvider().descriptor().packages();
+    }
 
     String name();
 
@@ -90,8 +100,15 @@ public interface SecureJar {
         NONE, INVALID, UNVERIFIED, VERIFIED
     }
 
-    // The methods below are deprecated for removal - use SecureJarBuilder instead!
     // TODO: add since
+
+    /**
+     * @deprecated Obtain via the {@link ModuleDescriptor} of the jar if you really need this.
+     */
+    @Deprecated(forRemoval = true)
+    List<Provider> getProviders();
+
+    // The members below are deprecated for removal - use SecureJarBuilder instead!
 
     @Deprecated(forRemoval = true)
     static SecureJar from(BiPredicate<String, String> filter, final Path... paths) {
