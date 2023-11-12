@@ -1,6 +1,7 @@
 package cpw.mods.jarhandling;
 
 import cpw.mods.jarhandling.impl.Jar;
+import cpw.mods.jarhandling.impl.JarContentsImpl;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;

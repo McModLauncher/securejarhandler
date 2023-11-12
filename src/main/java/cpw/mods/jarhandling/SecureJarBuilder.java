@@ -11,55 +11,57 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.jar.Manifest;
 
+/**
+ * Builder for a {@link SecureJar}.
+ *
+ * @see JarContentsBuilder
+ */
 public final class SecureJarBuilder {
-    private Path[] paths = new Path[0];
-    private Supplier<Manifest> defaultManifest = Manifest::new;
-    private String[] ignoredRootPackages = new String[0];
+    private final JarContentsBuilder contentsBuilder = new JarContentsBuilder();
     @Nullable
-    private BiPredicate<String, String> pathFilter = null;
+    private JarContentsImpl contents;
     private Function<JarContents, JarMetadata> metadataSupplier = JarMetadata::from;
 
     public SecureJarBuilder() {}
 
     /**
-     * Sets the paths for the files of this jar.
+     * @see JarContentsBuilder#paths(Path...)
      */
     public SecureJarBuilder paths(Path... paths) {
-        this.paths = paths;
+        contentsBuilder.paths(paths);
         return this;
     }
 
     /**
-     * Overrides the default manifest for this jar.
-     * The default manifest is only used when the jar does not provide a manifest already.
+     * @see JarContentsBuilder#defaultManifest(Supplier)
      */
     public SecureJarBuilder defaultManifest(Supplier<Manifest> manifest) {
-        Objects.requireNonNull(manifest);
-
-        this.defaultManifest = manifest;
+        contentsBuilder.defaultManifest(manifest);
         return this;
     }
 
     /**
-     * Overrides the path filter for this jar, to exclude some entries from the underlying file system.
-     *
-     * <p>The second parameter to the filter is the base path, i.e. one of the paths passed to {@link #paths(Path...)}.
-     * The first parameter to the filter is the path of the entry being checked, relative to the base path.
+     * @see JarContentsBuilder#pathFilter(BiPredicate)
      */
     public SecureJarBuilder pathFilter(@Nullable BiPredicate<String, String> pathFilter) {
-        this.pathFilter = pathFilter;
+        contentsBuilder.pathFilter(pathFilter);
         return this;
     }
 
     /**
-     * Exclude some root folders from being scanned for code.
-     * This can be used to skip scanning of folders that are known to not contain code,
-     * but would be expensive to go through.
+     * @see JarContentsBuilder#ignoreRootPackages(String...)
      */
     public SecureJarBuilder ignoreRootPackages(String... ignoredRootPackages) {
-        Objects.requireNonNull(ignoredRootPackages);
+        contentsBuilder.ignoreRootPackages(ignoredRootPackages);
+        return this;
+    }
 
-        this.ignoredRootPackages = ignoredRootPackages;
+    /**
+     * Directly overrides the {@link JarContents} for this jar.
+     * If set, all the previous builder methods are ignored.
+     */
+    public SecureJarBuilder contents(JarContents contents) {
+        this.contents = (JarContentsImpl) contents;
         return this;
     }
 
@@ -77,8 +79,8 @@ public final class SecureJarBuilder {
      * Builds the jar.
      */
     public SecureJar build() {
-        JarContentsImpl contents = new JarContentsImpl(paths, defaultManifest, ignoredRootPackages, pathFilter);
+        JarContents contents = this.contents == null ? contentsBuilder.build() : this.contents;
         JarMetadata metadata = metadataSupplier.apply(contents);
-        return new Jar(contents, metadata);
+        return new Jar((JarContentsImpl) contents, metadata);
     }
 }

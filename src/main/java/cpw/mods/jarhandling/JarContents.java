@@ -12,13 +12,15 @@ import java.util.jar.Manifest;
 /**
  * Access to the contents of a list of {@link Path}s, interpreted as a jar file.
  * Typically used to build the {@linkplain JarMetadata metadata} for a {@link SecureJar}.
+ *
+ * <p>Create with {@link JarContentsBuilder}.
+ * Convert to a full jar with {@link SecureJarBuilder#contents(JarContents)}.
  */
 @ApiStatus.NonExtendable
 public interface JarContents {
     /**
      * @see SecureJar#getPrimaryPath()
      */
-    // TODO: document what this is actually used for
     Path getPrimaryPath();
 
     /**
