@@ -24,16 +24,28 @@ import java.util.jar.Manifest;
 /**
  * A secure jar is the full definition for a module,
  * including all its paths and code signing metadata.
- *
- * <p>An instance can be built with {@link SecureJarBuilder}.
  */
 public interface SecureJar {
     /**
      * Creates a jar from a list of paths.
-     * See {@link SecureJarBuilder} for more configuration options.
+     * See {@link JarContentsBuilder} for more configuration options.
      */
     static SecureJar from(final Path... paths) {
-        return new SecureJarBuilder().paths(paths).build();
+        return from(new JarContentsBuilder().paths(paths).build());
+    }
+
+    /**
+     * Creates a jar from its contents, with default metadata.
+     */
+    static SecureJar from(JarContents contents) {
+        return from(contents, JarMetadata.from(contents));
+    }
+
+    /**
+     * Creates a jar from its contents and metadata.
+     */
+    static SecureJar from(JarContents contents, JarMetadata metadata) {
+        return new Jar((JarContentsImpl) contents, metadata);
     }
 
     ModuleDataProvider moduleDataProvider();

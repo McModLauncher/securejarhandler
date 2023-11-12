@@ -14,7 +14,7 @@ import java.util.jar.Manifest;
  * Typically used to build the {@linkplain JarMetadata metadata} for a {@link SecureJar}.
  *
  * <p>Create with {@link JarContentsBuilder}.
- * Convert to a full jar with {@link SecureJarBuilder#contents(JarContents)}.
+ * Convert to a full jar with {@link SecureJar#from(JarContents)}.
  */
 @ApiStatus.NonExtendable
 public interface JarContents {
