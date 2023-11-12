@@ -45,7 +45,7 @@ public class JarContentsImpl implements JarContents {
     private final Map<Path, Integer> nameOverrides;
 
     // Folders known to not contain packages
-    private final Set<String> ignoredRootPackages;
+    private final Set<String> ignoredRootPackages = new HashSet<>();
     // Cache for repeated getPackages calls
     private Set<String> packages;
     // Cache for repeated getMetaInfServices calls
@@ -61,7 +61,8 @@ public class JarContentsImpl implements JarContents {
         // Read multi-release jar information
         this.nameOverrides = readMultiReleaseInfo();
 
-        this.ignoredRootPackages = Set.of(ignoredRootPackages);
+        this.ignoredRootPackages.add("META-INF"); // Always ignore META-INF
+        this.ignoredRootPackages.addAll(List.of(ignoredRootPackages)); // And additional user-provided packages
     }
 
     private Manifest readManifestAndSigningData(Supplier<Manifest> defaultManifest, Path[] validPaths) {
