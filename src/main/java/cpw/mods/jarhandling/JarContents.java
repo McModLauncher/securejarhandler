@@ -29,13 +29,13 @@ public interface JarContents {
     Optional<URI> findFile(String name);
 
     /**
-     * Gets the manifest of the jar.
+     * {@return the manifest of the jar}
      * Empty if no manifest is present in the jar.
      */
     Manifest getManifest();
 
     /**
-     * Gets all the packages in the jar.
+     * {@return all the packages in the jar}
      * (Every folder containing a {@code .class} file is considered a package.)
      */
     Set<String> getPackages();

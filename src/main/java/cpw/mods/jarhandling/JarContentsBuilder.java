@@ -22,7 +22,7 @@ public final class JarContentsBuilder {
     public JarContentsBuilder() {}
 
     /**
-     * Sets the paths for the files of this jar.
+     * Sets the root paths for the files of this jar.
      */
     public JarContentsBuilder paths(Path... paths) {
         this.paths = paths;
