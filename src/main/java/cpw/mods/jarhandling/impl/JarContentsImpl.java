@@ -16,6 +16,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -94,25 +95,49 @@ public class JarContentsImpl implements JarContents {
         return defaultManifest.get();
     }
 
+    /**
+     * Read multi-release information from the jar.
+     * Example of a multi-release jar layout:
+     *
+     * <pre>
+     * jar root
+     *   - A.class
+     *   - B.class
+     *   - C.class
+     *   - D.class
+     *   - META-INF
+     *      - versions
+     *         - 9
+     *            - A.class
+     *            - B.class
+     *         - 10
+     *            - A.class
+     * </pre>
+     */
     private Map<Path, Integer> readMultiReleaseInfo() {
+        // Must have the manifest entry
         boolean isMultiRelease = Boolean.parseBoolean(getManifest().getMainAttributes().getValue("Multi-Release"));
-        if (isMultiRelease) {
-            var vers = filesystem.getRoot().resolve("META-INF/versions");
-            try (var walk = Files.walk(vers)){
-                var allnames = walk.filter(p1 ->!p1.isAbsolute())
-                        .filter(path1 -> !Files.isDirectory(path1))
-                        .map(p1 -> p1.subpath(2, p1.getNameCount()))
-                        .collect(groupingBy(p->p.subpath(1, p.getNameCount()),
-                                mapping(p->Integer.parseInt(p.getName(0).toString()), toUnmodifiableList())));
-                return allnames.entrySet().stream()
-                        .map(e->Map.entry(e.getKey(), e.getValue().stream().reduce(Integer::max).orElse(8)))
-                        .filter(e-> e.getValue() < Runtime.version().feature())
-                        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
-            } catch (IOException ioe) {
-                throw new UncheckedIOException(ioe);
-            }
-        } else {
+        if (!isMultiRelease) {
             return Map.of();
+        }
+
+        var vers = filesystem.getRoot().resolve("META-INF/versions");
+        try (var walk = Files.walk(vers)) {
+            Map<Path, Integer> pathToJavaVersion = new HashMap<>();
+            walk
+                    // Look for files, not directories
+                    .filter(p -> !Files.isDirectory(p))
+                    .forEach(p -> {
+                        int javaVersion = Integer.parseInt(p.getName(2).toString());
+                        Path remainder = p.subpath(3, p.getNameCount());
+                        if (javaVersion <= Runtime.version().feature()) {
+                            // Associate path with the highest supported java version
+                            pathToJavaVersion.merge(remainder, javaVersion, Integer::max);
+                        }
+                    });
+            return pathToJavaVersion;
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
         }
     }
 
