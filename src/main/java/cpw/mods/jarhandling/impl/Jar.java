@@ -32,7 +32,7 @@ public class Jar implements SecureJar {
 
     @Deprecated(forRemoval = true)
     public Jar(final Supplier<Manifest> defaultManifest, final Function<SecureJar, JarMetadata> metadataFunction, final BiPredicate<String, String> pathfilter, final Path... paths) {
-        this.contents = new JarContentsImpl(paths, defaultManifest, new String[0], pathfilter);
+        this.contents = new JarContentsImpl(paths, defaultManifest, Set.of(), pathfilter);
         this.manifest = contents.getManifest();
         this.signingData = contents.signingData;
         this.filesystem = contents.filesystem;

@@ -52,7 +52,7 @@ public class JarContentsImpl implements JarContents {
     // Cache for repeated getMetaInfServices calls
     private List<SecureJar.Provider> providers;
 
-    public JarContentsImpl(Path[] paths, Supplier<Manifest> defaultManifest, String[] ignoredRootPackages, @Nullable BiPredicate<String, String> pathFilter) {
+    public JarContentsImpl(Path[] paths, Supplier<Manifest> defaultManifest, Set<String> ignoredRootPackages, @Nullable BiPredicate<String, String> pathFilter) {
         var validPaths = Arrays.stream(paths).filter(Files::exists).toArray(Path[]::new);
         if (validPaths.length == 0)
             throw new UncheckedIOException(new IOException("Invalid paths argument, contained no existing paths: " + Arrays.toString(paths)));
@@ -63,7 +63,7 @@ public class JarContentsImpl implements JarContents {
         this.nameOverrides = readMultiReleaseInfo();
 
         this.ignoredRootPackages.add("META-INF"); // Always ignore META-INF
-        this.ignoredRootPackages.addAll(List.of(ignoredRootPackages)); // And additional user-provided packages
+        this.ignoredRootPackages.addAll(ignoredRootPackages); // And additional user-provided packages
     }
 
     private Manifest readManifestAndSigningData(Supplier<Manifest> defaultManifest, Path[] validPaths) {

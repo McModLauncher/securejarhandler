@@ -5,6 +5,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.jar.Manifest;
@@ -15,7 +16,7 @@ import java.util.jar.Manifest;
 public final class JarContentsBuilder {
     private Path[] paths = new Path[0];
     private Supplier<Manifest> defaultManifest = Manifest::new;
-    private String[] ignoredRootPackages = new String[0];
+    private Set<String> ignoredRootPackages = Set.of();
     @Nullable
     private BiPredicate<String, String> pathFilter = null;
 
@@ -59,7 +60,7 @@ public final class JarContentsBuilder {
     public JarContentsBuilder ignoreRootPackages(String... ignoredRootPackages) {
         Objects.requireNonNull(ignoredRootPackages);
 
-        this.ignoredRootPackages = ignoredRootPackages;
+        this.ignoredRootPackages = Set.of(ignoredRootPackages);
         return this;
     }
 
