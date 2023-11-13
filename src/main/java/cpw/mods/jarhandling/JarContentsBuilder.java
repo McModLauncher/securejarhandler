@@ -1,12 +1,12 @@
 package cpw.mods.jarhandling;
 
 import cpw.mods.jarhandling.impl.JarContentsImpl;
+import cpw.mods.niofs.union.UnionPathFilter;
 import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.jar.Manifest;
 
@@ -18,7 +18,7 @@ public final class JarContentsBuilder {
     private Supplier<Manifest> defaultManifest = Manifest::new;
     private Set<String> ignoredRootPackages = Set.of();
     @Nullable
-    private BiPredicate<String, String> pathFilter = null;
+    private UnionPathFilter pathFilter = null;
 
     public JarContentsBuilder() {}
 
@@ -44,10 +44,9 @@ public final class JarContentsBuilder {
     /**
      * Overrides the path filter for this jar, to exclude some entries from the underlying file system.
      *
-     * <p>The second parameter to the filter is the base path, i.e. one of the paths passed to {@link #paths(Path...)}.
-     * The first parameter to the filter is the path of the entry being checked, relative to the base path.
+     * @see UnionPathFilter
      */
-    public JarContentsBuilder pathFilter(@Nullable BiPredicate<String, String> pathFilter) {
+    public JarContentsBuilder pathFilter(@Nullable UnionPathFilter pathFilter) {
         this.pathFilter = pathFilter;
         return this;
     }
@@ -68,6 +67,6 @@ public final class JarContentsBuilder {
      * Builds the jar.
      */
     public JarContents build() {
-        return new JarContentsImpl(paths, defaultManifest, ignoredRootPackages, pathFilter);
+        return new JarContentsImpl(paths, defaultManifest, ignoredRootPackages, pathFilter == null ? null : pathFilter::test);
     }
 }
