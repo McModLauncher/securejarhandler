@@ -74,10 +74,6 @@ public interface SecureJar {
 
     boolean hasSecurityData();
 
-    default Set<String> getPackages() {
-        return moduleDataProvider().descriptor().packages();
-    }
-
     String name();
 
     Path getPath(String first, String... rest);
@@ -127,6 +123,14 @@ public interface SecureJar {
     }
 
     // TODO: add since
+
+    /**
+     * @deprecated Obtain via the {@link ModuleDescriptor} of the jar if you really need this.
+     */
+    @Deprecated(forRemoval = true)
+    default Set<String> getPackages() {
+        return moduleDataProvider().descriptor().packages();
+    }
 
     /**
      * @deprecated Obtain via the {@link ModuleDescriptor} of the jar if you really need this.

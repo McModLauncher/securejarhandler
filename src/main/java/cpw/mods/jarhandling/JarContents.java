@@ -41,6 +41,14 @@ public interface JarContents {
     Set<String> getPackages();
 
     /**
+     * {@return all the packages in the jar, with some root packages excluded}
+     *
+     * <p>This can be used to skip scanning of folders that are known to not contain code,
+     * but would be expensive to go through.
+     */
+    Set<String> getPackagesExcluding(String... excludedRootPackages);
+
+    /**
      * Parses the {@code META-INF/services} files in the jar, and returns the list of service providers.
      */
     List<SecureJar.Provider> getMetaInfServices();

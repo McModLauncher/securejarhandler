@@ -28,8 +28,6 @@ import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
-import static java.util.stream.Collectors.*;
-
 public class JarContentsImpl implements JarContents {
     private static final UnionFileSystemProvider UFSP = (UnionFileSystemProvider) FileSystemProvider.installedProviders()
             .stream()
@@ -45,14 +43,12 @@ public class JarContentsImpl implements JarContents {
     // Name overrides, if the jar is a multi-release jar
     private final Map<Path, Integer> nameOverrides;
 
-    // Folders known to not contain packages
-    private final Set<String> ignoredRootPackages = new HashSet<>();
     // Cache for repeated getPackages calls
     private Set<String> packages;
     // Cache for repeated getMetaInfServices calls
     private List<SecureJar.Provider> providers;
 
-    public JarContentsImpl(Path[] paths, Supplier<Manifest> defaultManifest, Set<String> ignoredRootPackages, @Nullable BiPredicate<String, String> pathFilter) {
+    public JarContentsImpl(Path[] paths, Supplier<Manifest> defaultManifest, @Nullable BiPredicate<String, String> pathFilter) {
         var validPaths = Arrays.stream(paths).filter(Files::exists).toArray(Path[]::new);
         if (validPaths.length == 0)
             throw new UncheckedIOException(new IOException("Invalid paths argument, contained no existing paths: " + Arrays.toString(paths)));
@@ -61,9 +57,6 @@ public class JarContentsImpl implements JarContents {
         this.manifest = readManifestAndSigningData(defaultManifest, validPaths);
         // Read multi-release jar information
         this.nameOverrides = readMultiReleaseInfo();
-
-        this.ignoredRootPackages.add("META-INF"); // Always ignore META-INF
-        this.ignoredRootPackages.addAll(ignoredRootPackages); // And additional user-provided packages
     }
 
     private Manifest readManifestAndSigningData(Supplier<Manifest> defaultManifest, Path[] validPaths) {
@@ -161,34 +154,43 @@ public class JarContentsImpl implements JarContents {
     }
 
     @Override
+    public Set<String> getPackagesExcluding(String... excludedRootPackages) {
+        Set<String> ignoredRootPackages = new HashSet<>(excludedRootPackages.length+1);
+        ignoredRootPackages.add("META-INF"); // Always ignore META-INF
+        ignoredRootPackages.addAll(List.of(excludedRootPackages)); // And additional user-provided packages
+
+        Set<String> packages = new HashSet<>();
+        try {
+            Files.walkFileTree(this.filesystem.getRoot(), new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                    if (file.getFileName().toString().endsWith(".class") && attrs.isRegularFile()) {
+                        var pkg = file.getParent().toString().replace('/', '.');
+                        if (!pkg.isEmpty()) {
+                            packages.add(pkg);
+                        }
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) {
+                    if (path.getNameCount() > 0 && ignoredRootPackages.contains(path.getName(0).toString())) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+            return Set.copyOf(packages);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
     public Set<String> getPackages() {
         if (this.packages == null) {
-            Set<String> packages = new HashSet<>();
-            try {
-                Files.walkFileTree(this.filesystem.getRoot(), new SimpleFileVisitor<>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                        if (file.getFileName().toString().endsWith(".class") && attrs.isRegularFile()) {
-                            var pkg = file.getParent().toString().replace('/', '.');
-                            if (!pkg.isEmpty()) {
-                                packages.add(pkg);
-                            }
-                        }
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                    @Override
-                    public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) {
-                        if (path.getNameCount() > 0 && ignoredRootPackages.contains(path.getName(0).toString())) {
-                            return FileVisitResult.SKIP_SUBTREE;
-                        }
-                        return FileVisitResult.CONTINUE;
-                    }
-                });
-                this.packages = Set.copyOf(packages);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            this.packages = getPackagesExcluding();
         }
         return this.packages;
     }

@@ -6,7 +6,6 @@ import org.jetbrains.annotations.Nullable;
 
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.jar.Manifest;
 
@@ -16,7 +15,6 @@ import java.util.jar.Manifest;
 public final class JarContentsBuilder {
     private Path[] paths = new Path[0];
     private Supplier<Manifest> defaultManifest = Manifest::new;
-    private Set<String> ignoredRootPackages = Set.of();
     @Nullable
     private UnionPathFilter pathFilter = null;
 
@@ -52,21 +50,9 @@ public final class JarContentsBuilder {
     }
 
     /**
-     * Exclude some root folders from being scanned for code.
-     * This can be used to skip scanning of folders that are known to not contain code,
-     * but would be expensive to go through.
-     */
-    public JarContentsBuilder ignoreRootPackages(String... ignoredRootPackages) {
-        Objects.requireNonNull(ignoredRootPackages);
-
-        this.ignoredRootPackages = Set.of(ignoredRootPackages);
-        return this;
-    }
-
-    /**
      * Builds the jar.
      */
     public JarContents build() {
-        return new JarContentsImpl(paths, defaultManifest, ignoredRootPackages, pathFilter == null ? null : pathFilter::test);
+        return new JarContentsImpl(paths, defaultManifest, pathFilter == null ? null : pathFilter::test);
     }
 }
