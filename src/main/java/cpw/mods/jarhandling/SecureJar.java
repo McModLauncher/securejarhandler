@@ -138,28 +138,41 @@ public interface SecureJar {
     @Deprecated(forRemoval = true)
     List<Provider> getProviders();
 
-    // The members below are deprecated for removal - use SecureJarBuilder instead!
-
+    /**
+     * @deprecated Use {@link JarContentsBuilder} and {@link #from(JarContents)} instead.
+     */
     @Deprecated(forRemoval = true)
     static SecureJar from(BiPredicate<String, String> filter, final Path... paths) {
         return from(jar->JarMetadata.from(jar, paths), filter, paths);
     }
 
+    /**
+     * @deprecated Use {@link JarContentsBuilder} and {@link #from(JarContents)} instead.
+     */
     @Deprecated(forRemoval = true)
     static SecureJar from(Function<SecureJar, JarMetadata> metadataSupplier, final Path... paths) {
         return from(Manifest::new, metadataSupplier, paths);
     }
 
+    /**
+     * @deprecated Use {@link JarContentsBuilder} and {@link #from(JarContents)} instead.
+     */
     @Deprecated(forRemoval = true)
     static SecureJar from(Function<SecureJar, JarMetadata> metadataSupplier, BiPredicate<String, String> filter, final Path... paths) {
         return from(Manifest::new, metadataSupplier, filter, paths);
     }
 
+    /**
+     * @deprecated Use {@link JarContentsBuilder} and {@link #from(JarContents)} instead.
+     */
     @Deprecated(forRemoval = true)
     static SecureJar from(Supplier<Manifest> defaultManifest, Function<SecureJar, JarMetadata> metadataSupplier, final Path... paths) {
         return from(defaultManifest, metadataSupplier, null, paths);
     }
 
+    /**
+     * @deprecated Use {@link JarContentsBuilder} and {@link #from(JarContents)} instead.
+     */
     @Deprecated(forRemoval = true)
     static SecureJar from(Supplier<Manifest> defaultManifest, Function<SecureJar, JarMetadata> metadataSupplier, BiPredicate<String, String> filter, final Path... paths) {
         return new Jar(defaultManifest, metadataSupplier, filter, paths);
