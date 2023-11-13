@@ -146,9 +146,8 @@ public interface JarMetadata {
 
     /**
      * @deprecated Use {@link #from(JarContents)} instead.
-     * TODO: add since
      */
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true, since = "2.1.16")
     static JarMetadata from(final SecureJar jar, final Path... path) {
         if (path.length==0) throw new IllegalArgumentException("Need at least one path");
         final var pkgs = jar.getPackages();

@@ -30,7 +30,7 @@ public class Jar implements SecureJar {
 
     private final JarMetadata metadata;
 
-    @Deprecated(forRemoval = true)
+    @Deprecated(forRemoval = true, since = "2.1.16")
     public Jar(final Supplier<Manifest> defaultManifest, final Function<SecureJar, JarMetadata> metadataFunction, final BiPredicate<String, String> pathfilter, final Path... paths) {
         this.contents = new JarContentsImpl(paths, defaultManifest, pathfilter);
         this.manifest = contents.getManifest();
