@@ -389,7 +389,7 @@ public class UnionFileSystem extends FileSystem {
                             .map(Path::getFileName).map(Path::toString).toArray(String[]::new))
                     .map(this::fastPath));
         }
-        final Stream<Path> realStream = stream;
+        final Stream<Path> realStream = stream.distinct();
         return new DirectoryStream<>() {
             @Override
             public Iterator<Path> iterator() {
