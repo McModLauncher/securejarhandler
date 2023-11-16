@@ -1,7 +1,9 @@
 package cpw.mods.niofs.union;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -14,6 +16,7 @@ import java.nio.file.spi.FileSystemProvider;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -249,9 +252,15 @@ public class TestUnionFS {
         final var fileSystem = UFSP.newFileSystem(jar1, Map.of("additional", List.of(jar2, jar3)));
         var root = fileSystem.getPath("/");
         try (var dirStream = Files.newDirectoryStream(root)) {
+            final AtomicInteger amount = new AtomicInteger();
             assertAll(
-                    StreamSupport.stream(dirStream.spliterator(), false).map(p->()->Files.exists(p))
+                    StreamSupport.stream(dirStream.spliterator(), false).<Executable>map(p-> ()-> {
+                        if (!Files.exists(p)) {
+                            throw new FileNotFoundException(p.toString());
+                        }
+                    }).peek(it -> amount.incrementAndGet())
             );
+            assert amount.get() > 10;
         }
     }
     @Test

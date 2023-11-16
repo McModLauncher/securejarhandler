@@ -22,6 +22,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.UserPrincipalLookupService;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -96,7 +97,6 @@ public class UnionFileSystem extends FileSystem {
     }
 
     private final UnionPath root = new UnionPath(this, "/");
-    private final UnionPath notExistingPath = new UnionPath(this, "/SNOWMAN");
     private final UnionFileSystemProvider provider;
     private final String key;
     private final List<Path> basepaths;
@@ -241,14 +241,6 @@ public class UnionFileSystem extends FileSystem {
         }
     }
 
-    private Optional<Path> findFirstPathAt(final UnionPath path) {
-        return this.basepaths.stream()
-                .map(p -> toRealPath(p, path))
-                .filter(p -> p != notExistingPath)
-                .filter(Files::exists)
-                .findFirst();
-    }
-
     private static boolean zipFsExists(UnionFileSystem ufs, Path path) {
         try {
             if (Optional.ofNullable(ufs.embeddedFileSystems.get(path.getFileSystem())).filter(efs -> !efs.fsCh.isOpen()).isPresent())
@@ -273,7 +265,7 @@ public class UnionFileSystem extends FileSystem {
             final Path p = this.basepaths.get(i);
             final Path realPath = toRealPath(p, unionPath);
             // Test if the real path exists and matches the filter of this file system
-            if (realPath != notExistingPath && testFilter(realPath, p)) {
+            if (testFilter(realPath, p)) {
                 if (realPath.getFileSystem() == FileSystems.getDefault()) {
                     if (realPath.toFile().exists()) {
                         return Optional.of(realPath);
@@ -293,18 +285,12 @@ public class UnionFileSystem extends FileSystem {
             final Path last = basepaths.get(lastElementIndex);
             final Path realPath = toRealPath(last, unionPath);
             // We still care about the FS filter, but not about the existence of the real path
-            if (realPath != notExistingPath && testFilter(realPath, last)) {
+            if (testFilter(realPath, last)) {
                 return Optional.of(realPath);
             }
         }
 
         return Optional.empty();
-    }
-
-    private <T> Stream<T> streamPathList(final Function<Path, Optional<T>> function) {
-        return this.basepaths.stream()
-                .map(function)
-                .flatMap(Optional::stream);
     }
 
     @SuppressWarnings("unchecked")
@@ -313,12 +299,10 @@ public class UnionFileSystem extends FileSystem {
             // We need to run the test on the actual path,
             for (Path base : this.basepaths) {
                 // We need to know the full path for the filter
-                Path realPath = toRealPath(base, path);
-                if (realPath != notExistingPath) {
-                    Optional<BasicFileAttributes> fileAttributes = this.getFileAttributes(realPath);
-                    if (fileAttributes.isPresent() && testFilter(realPath, base)) {
-                        return (A) fileAttributes.get();
-                    }
+                final Path realPath = toRealPath(base, path);
+                final Optional<BasicFileAttributes> fileAttributes = this.getFileAttributes(realPath);
+                if (fileAttributes.isPresent() && testFilter(realPath, base)) {
+                    return (A) fileAttributes.get();
                 }
             }
             throw new NoSuchFileException(path.toString());
@@ -385,12 +369,11 @@ public class UnionFileSystem extends FileSystem {
     }
 
     public DirectoryStream<Path> newDirStream(final UnionPath path, final DirectoryStream.Filter<? super Path> filter) throws IOException {
-        final var allpaths = new LinkedHashSet<Path>();
+        List<Closeable> closeables = new ArrayList<>(basepaths.size());
+        Stream<Path> stream = Stream.empty();
         for (final var bp : basepaths) {
             final var dir = toRealPath(bp, path);
-            if (dir == notExistingPath) {
-                continue;
-            } else if (dir.getFileSystem() == FileSystems.getDefault() && !dir.toFile().exists()) {
+            if (dir.getFileSystem() == FileSystems.getDefault() && !dir.toFile().exists()) {
                 continue;
             } else if (dir.getFileSystem().provider().getScheme().equals("jar") && !zipFsExists(this, dir)) {
                 continue;
@@ -398,24 +381,26 @@ public class UnionFileSystem extends FileSystem {
                 continue;
             }
             final var isSimple = embeddedFileSystems.containsKey(bp);
-            try (final var ds = Files.newDirectoryStream(dir, filter)) {
-                StreamSupport.stream(ds.spliterator(), false)
-                        .filter(p -> testFilter(p, bp))
-                        .map(other -> StreamSupport.stream(Spliterators.spliteratorUnknownSize((isSimple ? other : bp.relativize(other)).iterator(), Spliterator.ORDERED), false)
-                                .map(Path::getFileName).map(Path::toString).toArray(String[]::new))
-                        .map(this::fastPath)
-                        .forEachOrdered(allpaths::add);
-            }
+            final var ds = Files.newDirectoryStream(dir, filter);
+            closeables.add(ds);
+            stream = Stream.concat(stream, StreamSupport.stream(ds.spliterator(), false)
+                    .filter(p -> testFilter(p, bp))
+                    .map(other -> StreamSupport.stream(Spliterators.spliteratorUnknownSize((isSimple ? other : bp.relativize(other)).iterator(), Spliterator.ORDERED), false)
+                            .map(Path::getFileName).map(Path::toString).toArray(String[]::new))
+                    .map(this::fastPath));
         }
+        final Stream<Path> realStream = stream;
         return new DirectoryStream<>() {
             @Override
             public Iterator<Path> iterator() {
-                return allpaths.iterator();
+                return realStream.iterator();
             }
 
             @Override
             public void close() throws IOException {
-                // noop
+                for (Closeable closeable : closeables) {
+                    closeable.close();
+                }
             }
         };
     }
