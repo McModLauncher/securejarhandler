@@ -385,7 +385,7 @@ public class UnionFileSystem extends FileSystem {
             closeables.add(ds);
             stream = Stream.concat(stream, StreamSupport.stream(ds.spliterator(), false)
                     .filter(p -> testFilter(p, bp))
-                    .map(other -> StreamSupport.stream(Spliterators.spliteratorUnknownSize((isSimple ? other : bp.relativize(other)).iterator(), Spliterator.ORDERED), false)
+                    .map(other -> StreamSupport.stream((isSimple ? other : bp.relativize(other)).spliterator(), false)
                             .map(Path::getFileName).map(Path::toString).toArray(String[]::new))
                     .map(this::fastPath));
         }
