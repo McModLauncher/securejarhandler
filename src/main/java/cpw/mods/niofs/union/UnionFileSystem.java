@@ -397,8 +397,20 @@ public class UnionFileSystem extends FileSystem {
 
             @Override
             public void close() throws IOException {
+                List<IOException> exceptions = new ArrayList<>();
+
                 for (Closeable closeable : closeables) {
-                    closeable.close();
+                    try {
+                        closeable.close();
+                    } catch (IOException e) {
+                        exceptions.add(e);
+                    }
+                }
+
+                if (!exceptions.isEmpty()) {
+                    IOException aggregate = new IOException("Failed to close some streams in UnionFileSystem.newDirStream");
+                    exceptions.forEach(aggregate::addSuppressed);
+                    throw aggregate;
                 }
             }
         };
