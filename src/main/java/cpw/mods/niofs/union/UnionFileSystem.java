@@ -383,11 +383,10 @@ public class UnionFileSystem extends FileSystem {
             final var isSimple = embeddedFileSystems.containsKey(bp);
             final var ds = Files.newDirectoryStream(dir, filter);
             closeables.add(ds);
-            stream = Stream.concat(stream, StreamSupport.stream(ds.spliterator(), false)
+            final var currentPaths = StreamSupport.stream(ds.spliterator(), false)
                     .filter(p -> testFilter(p, bp))
-                    .map(other -> StreamSupport.stream((isSimple ? other : bp.relativize(other)).spliterator(), false)
-                            .map(Path::getFileName).map(Path::toString).toArray(String[]::new))
-                    .map(this::fastPath));
+                    .map(other -> fastPath(isSimple ? other : bp.relativize(other)));
+            stream = Stream.concat(stream, currentPaths);
         }
         final Stream<Path> realStream = stream.distinct();
         return new DirectoryStream<>() {
@@ -403,6 +402,19 @@ public class UnionFileSystem extends FileSystem {
                 }
             }
         };
+    }
+
+    /**
+     * Create a relative UnionPath from the path elements of the given {@link Path}.
+     */
+    private Path fastPath(Path pathToConvert) {
+        String[] parts = new String[pathToConvert.getNameCount()];
+
+        for (int i = 0; i < parts.length; i++) {
+            parts[i] = pathToConvert.getName(i).toString();
+        }
+
+        return fastPath(parts);
     }
 
     /*
