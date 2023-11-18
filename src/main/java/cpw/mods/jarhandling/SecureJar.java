@@ -2,6 +2,7 @@ package cpw.mods.jarhandling;
 
 import cpw.mods.jarhandling.impl.Jar;
 import cpw.mods.jarhandling.impl.JarContentsImpl;
+import cpw.mods.niofs.union.UnionPathFilter;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -103,7 +104,7 @@ public interface SecureJar {
         /**
          * Helper method to parse service provider implementations from a {@link Path}.
          */
-        public static Provider fromPath(final Path path, final BiPredicate<String, String> pkgFilter) {
+        public static Provider fromPath(Path path, @Nullable UnionPathFilter pkgFilter) {
             final var sname = path.getFileName().toString();
             try {
                 var entries = Files.readAllLines(path).stream()

@@ -34,13 +34,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+/**
+ * Can be instantiated using the public methods in {@link UnionFileSystemProvider}.
+ */
 public class UnionFileSystem extends FileSystem {
     private static final MethodHandle ZIPFS_EXISTS;
     private static final MethodHandle ZIPFS_CH;
@@ -104,15 +106,18 @@ public class UnionFileSystem extends FileSystem {
     private final List<Path> basepaths;
     private final int lastElementIndex;
     @Nullable
-    private final BiPredicate<String, String> pathFilter;
+    private final UnionPathFilter pathFilter;
     private final Map<Path, EmbeddedFileSystemMetadata> embeddedFileSystems;
 
     public Path getPrimaryPath() {
         return basepaths.get(basepaths.size() - 1);
     }
 
+    /**
+     * {@return the filter for this file system, or null if there is none}
+     */
     @Nullable
-    public BiPredicate<String, String> getFilesystemFilter() {
+    public UnionPathFilter getFileSystemFilter() {
         return pathFilter;
     }
 
@@ -123,7 +128,7 @@ public class UnionFileSystem extends FileSystem {
     private record EmbeddedFileSystemMetadata(Path path, FileSystem fs, SeekableByteChannel fsCh) {
     }
 
-    public UnionFileSystem(final UnionFileSystemProvider provider, @Nullable BiPredicate<String, String> pathFilter, final String key, final Path... basepaths) {
+    UnionFileSystem(UnionFileSystemProvider provider, @Nullable UnionPathFilter pathFilter, String key, Path... basepaths) {
         this.pathFilter = pathFilter;
         this.provider = provider;
         this.key = key;

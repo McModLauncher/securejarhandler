@@ -53,6 +53,6 @@ public final class JarContentsBuilder {
      * Builds the jar.
      */
     public JarContents build() {
-        return new JarContentsImpl(paths, defaultManifest, pathFilter == null ? null : pathFilter::test);
+        return new JarContentsImpl(paths, defaultManifest, pathFilter);
     }
 }
