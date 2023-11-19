@@ -2,15 +2,18 @@ package cpw.mods.jarhandling;
 
 import cpw.mods.jarhandling.impl.ModuleJarMetadata;
 import cpw.mods.jarhandling.impl.SimpleJarMetadata;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.module.ModuleDescriptor;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 public interface JarMetadata {
     String name();
+    @Nullable
     String version();
     ModuleDescriptor descriptor();
     // ALL from jdk.internal.module.ModulePath.java
@@ -41,23 +44,23 @@ public interface JarMetadata {
      * from {@code Automatic-Module-Name} in the manifest.
      */
     static JarMetadata from(JarContents jar) {
-        final var pkgs = jar.getPackages();
         var mi = jar.findFile("module-info.class");
         if (mi.isPresent()) {
-            return new ModuleJarMetadata(mi.get(), pkgs);
+            return new ModuleJarMetadata(mi.get(), jar::getPackages);
         } else {
             var providers = jar.getMetaInfServices();
-            var fileCandidate = fromFileName(jar.getPrimaryPath(), pkgs, providers);
+            Supplier<Set<String>> packagesSupplier = jar::getPackages;
+            var fileCandidate = fromFileName(jar.getPrimaryPath(), packagesSupplier, providers);
             var aname = jar.getManifest().getMainAttributes().getValue("Automatic-Module-Name");
             if (aname != null) {
-                return new SimpleJarMetadata(aname, fileCandidate.version(), pkgs, providers);
+                return new SimpleJarMetadata(aname, fileCandidate.version(), packagesSupplier, providers);
             } else {
                 return fileCandidate;
             }
         }
     }
 
-    static SimpleJarMetadata fromFileName(final Path path, final Set<String> pkgs, final List<SecureJar.Provider> providers) {
+    static SimpleJarMetadata fromFileName(final Path path, Supplier<Set<String>> packagesSupplier, final List<SecureJar.Provider> providers) {
         // detect Maven-like paths
         Path versionMaybe = path.getParent();
         if (versionMaybe != null)
@@ -73,9 +76,9 @@ public interface JarMetadata {
                     if (mat.find()) {
                         var potential = ver.substring(mat.start());
                         ver = safeParseVersion(potential, path.getFileName().toString());
-                        return new SimpleJarMetadata(cleanModuleName(name), ver, pkgs, providers);
+                        return new SimpleJarMetadata(cleanModuleName(name), ver, packagesSupplier, providers);
                     } else {
-                        return new SimpleJarMetadata(cleanModuleName(name), null, pkgs, providers);
+                        return new SimpleJarMetadata(cleanModuleName(name), null, packagesSupplier, providers);
                     }
                 }
             }
@@ -93,9 +96,9 @@ public interface JarMetadata {
             var potential = fn.substring(mat.start() + 1);
             var ver = safeParseVersion(potential, path.getFileName().toString());
             var name = mat.replaceAll("");
-            return new SimpleJarMetadata(cleanModuleName(name), ver, pkgs, providers);
+            return new SimpleJarMetadata(cleanModuleName(name), ver, packagesSupplier, providers);
         } else {
-            return new SimpleJarMetadata(cleanModuleName(fn), null, pkgs, providers);
+            return new SimpleJarMetadata(cleanModuleName(fn), null, packagesSupplier, providers);
         }
     }
 
@@ -145,6 +148,14 @@ public interface JarMetadata {
     }
 
     /**
+     * @deprecated Use {@link #fromFileName(Path, Supplier, List)} instead.
+     */
+    @Deprecated(forRemoval = true, since = "TODO when?")
+    static SimpleJarMetadata fromFileName(final Path path, final Set<String> pkgs, final List<SecureJar.Provider> providers) {
+        return fromFileName(path, () -> pkgs, providers);
+    }
+
+    /**
      * @deprecated Use {@link #from(JarContents)} instead.
      */
     @Deprecated(forRemoval = true, since = "2.1.16")
@@ -153,13 +164,13 @@ public interface JarMetadata {
         final var pkgs = jar.getPackages();
         var mi = jar.moduleDataProvider().findFile("module-info.class");
         if (mi.isPresent()) {
-            return new ModuleJarMetadata(mi.get(), pkgs);
+            return new ModuleJarMetadata(mi.get(), jar::getPackages);
         } else {
             var providers = jar.getProviders();
             var fileCandidate = fromFileName(path[0], pkgs, providers);
             var aname = jar.moduleDataProvider().getManifest().getMainAttributes().getValue("Automatic-Module-Name");
             if (aname != null) {
-                return new SimpleJarMetadata(aname, fileCandidate.version(), pkgs, providers);
+                return new SimpleJarMetadata(aname, fileCandidate.version(), () -> pkgs, providers);
             } else {
                 return fileCandidate;
             }
