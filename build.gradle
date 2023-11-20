@@ -84,6 +84,16 @@ dependencyUpdates {
     }
 }
 
+sourceSets {
+    // Test JAR, to be loaded via SecureJar.from(...)
+    testjar {}
+    // Test classpath code, to make sure that ModuleClassLoader is properly isolated from the classpath
+    classpathtestjar {}
+    test {
+        runtimeClasspath += sourceSets.classpathtestjar.output
+    }
+}
+
 // We can't use toolchains because we need --add-export
 //java.toolchain.languageVersion = JavaLanguageVersion.of(16)
 compileJava {
@@ -95,20 +105,12 @@ compileJava {
     ]
 }
 
-test {
-    //exclude '**/*'
-    useJUnitPlatform()
-    jvmArgs += [
-            '--add-opens=java.base/java.lang.invoke=ALL-UNNAMED'
-    ]
-}
-
 compileTestJava {
     sourceCompatibility = JavaVersion.VERSION_16
     targetCompatibility = JavaVersion.VERSION_16
     options.compilerArgs += [
             '--add-modules=jdk.zipfs',
-            '--add-exports=jdk.zipfs/jdk.nio.zipfs=ALL-UNNAMED'
+            '--add-exports=jdk.zipfs/jdk.nio.zipfs=cpw.mods.securejarhandler'
     ]
 }
 
@@ -124,6 +126,45 @@ dependencies {
     implementation("org.jetbrains:annotations:${project.jb_annotations_version}")
     testImplementation('org.junit.jupiter:junit-jupiter-api:5.8.+')
     testRuntimeOnly('org.junit.jupiter:junit-jupiter-engine:5.8.+')
+}
+
+test {
+    //exclude '**/*'
+    useJUnitPlatform()
+    jvmArgs += [
+            // Add test sourceset to the SJH module
+            '--patch-module=cpw.mods.securejarhandler=' + sourceSets.test.output.classesDirs.asPath,
+            // SJH needs this for UnionFileSystem
+            '--add-opens=java.base/java.lang.invoke=cpw.mods.securejarhandler',
+            // Allow JUnit to access the tests
+            '--add-opens=cpw.mods.securejarhandler/cpw.mods.cl.test=ALL-UNNAMED',
+            '--add-opens=cpw.mods.securejarhandler/cpw.mods.jarhandling.impl=ALL-UNNAMED',
+            '--add-opens=cpw.mods.securejarhandler/cpw.mods.niofs.union=ALL-UNNAMED',
+            // To test reading from the classpath
+            '--add-reads=cpw.mods.securejarhandler=ALL-UNNAMED',
+    ]
+
+    dependsOn tasks.compileTestjarJava
+    environment "sjh-testjar", sourceSets.testjar.output.classesDirs.asPath
+
+    // Add SJH and its dependencies to the module path
+    jvmArgumentProviders.add(new CommandLineArgumentProvider() {
+        @Override
+        Iterable<String> asArguments() {
+            // Dependencies
+            def modulePath = test.classpath.filter {
+                it.name.contains("asm")
+            }.join(File.pathSeparator)
+            // SJH itself
+            modulePath += File.pathSeparator + sourceSets.main.output.classesDirs.asPath
+
+            return [
+                    "--module-path",
+                    modulePath,
+                    "--add-modules=ALL-MODULE-PATH",
+            ]
+        }
+    })
 }
 
 changelog {
