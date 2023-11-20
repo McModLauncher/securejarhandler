@@ -4,29 +4,41 @@ import cpw.mods.cl.JarModuleFinder;
 import cpw.mods.cl.ModuleClassLoader;
 import cpw.mods.jarhandling.SecureJar;
 
+import java.io.File;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.stream.Stream;
 
 public class TestjarUtil {
+    private record BuiltLayer(ModuleClassLoader cl, ModuleLayer layer) {}
+
     /**
-     * Load the {@code testjar} source set as new module into a new layer,
-     * and run the callback with the new layer's classloader.
+     * Build a layer for a {@code testjarX} source set.
      */
-    public static void withTestJarSetup(TestCallback callback) throws Exception {
-        // Setup a child layer with a jar from the testjar sourceset.
-        var testjarPath = Paths.get(System.getenv("sjh-testjar"));
-        var childLayerJar = SecureJar.from(testjarPath);
+    private static BuiltLayer buildTestjarLayer(int testjar, List<ModuleLayer> parentLayers) {
+        var paths = Stream.of(System.getenv("sjh.testjar" + testjar).split(File.pathSeparator))
+                .map(Paths::get)
+                .toArray(Path[]::new);
+        var jar = SecureJar.from(paths);
 
-        var roots = List.of(childLayerJar.name());
-        var jf = JarModuleFinder.of(childLayerJar);
-        var conf = Configuration.resolveAndBind(jf, List.of(ModuleLayer.boot().configuration()), ModuleFinder.of(), roots);
-        var cl = new ModuleClassLoader("testLoadBootService", conf, List.of(ModuleLayer.boot()));
-        ModuleLayer.defineModules(conf, List.of(ModuleLayer.boot()), m->cl);
+        var roots = List.of(jar.name());
+        var jf = JarModuleFinder.of(jar);
+        var conf = Configuration.resolveAndBind(
+                jf,
+                parentLayers.stream().map(ModuleLayer::configuration).toList(),
+                ModuleFinder.of(),
+                roots);
+        var cl = new ModuleClassLoader("testjar2-layer", conf, parentLayers);
+        var layer = ModuleLayer.defineModules(conf, parentLayers, m -> cl).layer();
+        return new BuiltLayer(cl, layer);
+    }
 
-        // Context classloader setup (to load services from the module CL)
+    private static void withClassLoader(ClassLoader cl, TestCallback callback) throws Exception {
+        // Replace context classloader during the callback
         var previousCl = Thread.currentThread().getContextClassLoader();
         Thread.currentThread().setContextClassLoader(cl);
 
@@ -37,17 +49,49 @@ public class TestjarUtil {
         }
     }
 
+    /**
+     * Load the {@code testjar1} source set as new module into a new layer,
+     * and run the callback with the new layer's classloader.
+     */
+    public static void withTestjar1Setup(TestCallback callback) throws Exception {
+        var built = buildTestjarLayer(1, List.of(ModuleLayer.boot()));
+
+        withClassLoader(built.cl, callback);
+    }
+
+    /**
+     * Load the {@code testjar2} source set as new module into a new layer,
+     * whose parent is a layer loaded from the {@code testjar1} source set.
+     */
+    public static void withTestjar2Setup(TestCallback callback) throws Exception {
+        var built1 = buildTestjarLayer(1, List.of(ModuleLayer.boot()));
+        var built2 = buildTestjarLayer(2, List.of(built1.layer));
+
+        withClassLoader(built2.cl, callback);
+    }
+
     @FunctionalInterface
     public interface TestCallback {
         void test(ClassLoader cl) throws Exception;
     }
 
     /**
-     * Instantiates a {@link ServiceLoader} within the testjar module.
+     * Instantiates a {@link ServiceLoader} within the testjar1 module.
      */
-    public static <S> ServiceLoader<S> loadTestjar(ClassLoader cl, Class<S> clazz) throws Exception {
+    public static <S> ServiceLoader<S> loadTestjar1(ClassLoader cl, Class<S> clazz) throws Exception {
         // Use the `load` method from the testjar sourceset.
-        var testClass = cl.loadClass("cpw.mods.cl.testjar.ServiceLoaderTest");
+        var testClass = cl.loadClass("cpw.mods.cl.testjar1.ServiceLoaderTest");
+        var loadMethod = testClass.getMethod("load", Class.class);
+        //noinspection unchecked
+        return (ServiceLoader<S>) loadMethod.invoke(null, clazz);
+    }
+
+    /**
+     * Instantiates a {@link ServiceLoader} within the testjar2 module.
+     */
+    public static <S> ServiceLoader<S> loadTestjar2(ClassLoader cl, Class<S> clazz) throws Exception {
+        // Use the `load` method from the testjar sourceset.
+        var testClass = cl.loadClass("cpw.mods.cl.testjar2.ServiceLoaderTest");
         var loadMethod = testClass.getMethod("load", Class.class);
         //noinspection unchecked
         return (ServiceLoader<S>) loadMethod.invoke(null, clazz);
@@ -58,7 +102,7 @@ public class TestjarUtil {
      */
     public static <S> ServiceLoader<S> loadClasspath(ClassLoader cl, Class<S> clazz) throws Exception {
         // Use the `load` method from the testjar sourceset.
-        var testClass = cl.loadClass("cpw.mods.classpathtestjar.ServiceLoaderTest");
+        var testClass = cl.loadClass("cpw.mods.testjar_cp.ServiceLoaderTest");
         var loadMethod = testClass.getMethod("load", Class.class);
         //noinspection unchecked
         return (ServiceLoader<S>) loadMethod.invoke(null, clazz);

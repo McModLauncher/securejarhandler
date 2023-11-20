@@ -85,12 +85,13 @@ dependencyUpdates {
 }
 
 sourceSets {
-    // Test JAR, to be loaded via SecureJar.from(...)
-    testjar {}
+    // Additional test JARs, to be loaded via SecureJar.from(...)
+    testjar1 {}
+    testjar2 {}
     // Test classpath code, to make sure that ModuleClassLoader is properly isolated from the classpath
-    classpathtestjar {}
+    testjar_cp {}
     test {
-        runtimeClasspath += sourceSets.classpathtestjar.output
+        runtimeClasspath += sourceSets.testjar_cp.output
     }
 }
 
@@ -144,8 +145,12 @@ test {
             '--add-reads=cpw.mods.securejarhandler=ALL-UNNAMED',
     ]
 
-    dependsOn tasks.compileTestjarJava
-    environment "sjh-testjar", sourceSets.testjar.output.classesDirs.asPath
+    dependsOn tasks.compileTestjar1Java
+    dependsOn tasks.processTestjar1Resources
+    dependsOn tasks.compileTestjar2Java
+    dependsOn tasks.processTestjar2Resources
+    environment "sjh.testjar1", sourceSets.testjar1.output.classesDirs.asPath + File.pathSeparator + sourceSets.testjar1.output.resourcesDir.absolutePath
+    environment "sjh.testjar2", sourceSets.testjar2.output.classesDirs.asPath + File.pathSeparator + sourceSets.testjar2.output.resourcesDir.absolutePath
 
     // Add SJH and its dependencies to the module path
     jvmArgumentProviders.add(new CommandLineArgumentProvider() {

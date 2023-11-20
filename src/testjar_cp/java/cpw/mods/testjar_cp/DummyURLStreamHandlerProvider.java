@@ -1,4 +1,4 @@
-package cpw.mods.classpathtestjar;
+package cpw.mods.testjar_cp;
 
 import java.net.URLStreamHandler;
 import java.net.spi.URLStreamHandlerProvider;

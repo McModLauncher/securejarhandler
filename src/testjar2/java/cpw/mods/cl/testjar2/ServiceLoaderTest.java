@@ -1,4 +1,4 @@
-package cpw.mods.cl.testjar;
+package cpw.mods.cl.testjar2;
 
 import java.util.ServiceLoader;
 

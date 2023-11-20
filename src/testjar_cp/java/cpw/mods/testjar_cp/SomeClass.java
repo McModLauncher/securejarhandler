@@ -1,4 +1,4 @@
-package cpw.mods.classpathtestjar;
+package cpw.mods.testjar_cp;
 
 /**
  * Referenced by {@code TestClassLoader}.
