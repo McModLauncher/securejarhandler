@@ -20,7 +20,7 @@ import java.util.jar.Manifest;
  * Implementation of {@link SecureJar} that does not actually contain any files,
  * but still defines packages.
  *
- * <p>This can be used for frameworks that generate classes at runtime in specific packages,
+ * <p>This can be used by frameworks that generate classes at runtime, in specific packages,
  * and need to make a {@link SecureJar}-based module system implementation aware of these packages.
  */
 public final class VirtualJar implements SecureJar {
