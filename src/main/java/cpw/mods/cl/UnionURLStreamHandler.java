@@ -33,4 +33,34 @@ public class UnionURLStreamHandler implements ModularURLHandler.IURLProvider {
 
         };
     }
+
+    @Override
+    public long getLastModified(URL u) {
+        try {
+            if (Paths.get(u.toURI()) instanceof UnionPath upath) {
+                return Files.getLastModifiedTime(upath).toMillis();
+            } else {
+                throw new IllegalArgumentException("Invalid Path "+u.toURI()+" at UnionURLStreamHandler");
+            }
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public long getContentLength(URL u) {
+        try {
+            if (Paths.get(u.toURI()) instanceof UnionPath upath) {
+                return Files.size(upath);
+            } else {
+                throw new IllegalArgumentException("Invalid Path "+u.toURI()+" at UnionURLStreamHandler");
+            }
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 }
