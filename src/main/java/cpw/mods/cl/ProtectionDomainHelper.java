@@ -1,5 +1,7 @@
 package cpw.mods.cl;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.net.URL;
 import java.security.*;
 import java.util.HashMap;
@@ -24,6 +26,31 @@ public class ProtectionDomainHelper {
                 perms.add(new AllPermission());
                 return new ProtectionDomain(codeSource, perms, cl, null);
             });
+        }
+    }
+
+    private static final VarHandle PKG_MODULE_HANDLE;
+    static {
+        try {
+            var trustedLookupField = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
+            trustedLookupField.setAccessible(true);
+            MethodHandles.Lookup trustedLookup = (MethodHandles.Lookup) trustedLookupField.get(null);
+
+            Class<?> namedPackage = Class.forName("java.lang.NamedPackage");
+            PKG_MODULE_HANDLE = trustedLookup.findVarHandle(namedPackage, "module", Module.class);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+    }
+
+    static void trySetPackageModule(Package pkg, Module module) {
+        Module value = (Module) PKG_MODULE_HANDLE.get(pkg);
+        if (value == null || !value.isNamed()) {
+            try {
+                PKG_MODULE_HANDLE.set(pkg, module);
+            } catch (Throwable t) {
+                throw new RuntimeException(t);
+            }
         }
     }
 
