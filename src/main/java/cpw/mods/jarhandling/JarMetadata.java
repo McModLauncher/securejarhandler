@@ -15,6 +15,17 @@ public interface JarMetadata {
     @Nullable
     String version();
     ModuleDescriptor descriptor();
+
+    /**
+     * {@return the provider declarations for this jar}
+     *
+     * <p>Computing the {@link #descriptor()} can be expensive as it requires scanning the jar for packages.
+     * If only the service providers are needed, this method can be used instead.
+     */
+    default List<SecureJar.Provider> providers() {
+        return descriptor().provides().stream().map(p -> new SecureJar.Provider(p.service(), p.providers())).toList();
+    }
+
     // ALL from jdk.internal.module.ModulePath.java
     Pattern DASH_VERSION = Pattern.compile("-([.\\d]+)");
     Pattern NON_ALPHANUM = Pattern.compile("[^A-Za-z0-9]");

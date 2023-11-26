@@ -6,6 +6,7 @@ import cpw.mods.jarhandling.SecureJar;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.module.ModuleDescriptor;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -24,6 +25,7 @@ public class SimpleJarMetadata extends LazyJarMetadata implements JarMetadata {
         this.version = version;
         this.packagesSupplier = packagesSupplier;
         this.providers = providers;
+        this.providers.removeIf(p -> p.providers().isEmpty());
     }
 
     @Override
@@ -43,7 +45,12 @@ public class SimpleJarMetadata extends LazyJarMetadata implements JarMetadata {
         if (version()!=null)
             bld.version(version());
         bld.packages(packagesSupplier.get());
-        providers.stream().filter(p->!p.providers().isEmpty()).forEach(p->bld.provides(p.serviceName(), p.providers()));
+        providers.forEach(p->bld.provides(p.serviceName(), p.providers()));
         return bld.build();
+    }
+
+    @Override
+    public List<SecureJar.Provider> providers() {
+        return Collections.unmodifiableList(providers);
     }
 }
