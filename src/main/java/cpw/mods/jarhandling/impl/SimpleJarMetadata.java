@@ -24,8 +24,7 @@ public class SimpleJarMetadata extends LazyJarMetadata implements JarMetadata {
         this.name = name;
         this.version = version;
         this.packagesSupplier = packagesSupplier;
-        this.providers = providers;
-        this.providers.removeIf(p -> p.providers().isEmpty());
+        this.providers = providers.stream().filter(p -> !p.providers().isEmpty()).toList();
     }
 
     @Override
