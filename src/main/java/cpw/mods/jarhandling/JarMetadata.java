@@ -8,7 +8,6 @@ import java.lang.module.ModuleDescriptor;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 public interface JarMetadata {
@@ -48,19 +47,20 @@ public interface JarMetadata {
         if (mi.isPresent()) {
             return new ModuleJarMetadata(mi.get(), jar::getPackages);
         } else {
-            var providers = jar.getMetaInfServices();
-            Supplier<Set<String>> packagesSupplier = jar::getPackages;
-            var fileCandidate = fromFileName(jar.getPrimaryPath(), packagesSupplier, providers);
-            var aname = jar.getManifest().getMainAttributes().getValue("Automatic-Module-Name");
-            if (aname != null) {
-                return new SimpleJarMetadata(aname, fileCandidate.version(), packagesSupplier, providers);
-            } else {
-                return fileCandidate;
+            var nav = computeNameAndVersion(jar.getPrimaryPath());
+            String name = nav.name();
+            String version = nav.version();
+
+            String automaticModuleName = jar.getManifest().getMainAttributes().getValue("Automatic-Module-Name");
+            if (automaticModuleName != null) {
+                name = automaticModuleName;
             }
+
+            return new SimpleJarMetadata(name, version, jar::getPackages, jar.getMetaInfServices());
         }
     }
 
-    static SimpleJarMetadata fromFileName(final Path path, Supplier<Set<String>> packagesSupplier, final List<SecureJar.Provider> providers) {
+    private static NameAndVersion computeNameAndVersion(Path path) {
         // detect Maven-like paths
         Path versionMaybe = path.getParent();
         if (versionMaybe != null)
@@ -76,29 +76,29 @@ public interface JarMetadata {
                     if (mat.find()) {
                         var potential = ver.substring(mat.start());
                         ver = safeParseVersion(potential, path.getFileName().toString());
-                        return new SimpleJarMetadata(cleanModuleName(name), ver, packagesSupplier, providers);
+                        return new NameAndVersion(cleanModuleName(name), ver);
                     } else {
-                        return new SimpleJarMetadata(cleanModuleName(name), null, packagesSupplier, providers);
+                        return new NameAndVersion(cleanModuleName(name), null);
                     }
                 }
             }
         }
 
         // fallback parsing
-        var fn = path.getFileName().toString();     
+        var fn = path.getFileName().toString();
         var lastDot = fn.lastIndexOf('.');
         if (lastDot > 0) {
             fn = fn.substring(0, lastDot); // strip extension if possible
         }
-       
+
         var mat = DASH_VERSION.matcher(fn);
         if (mat.find()) {
             var potential = fn.substring(mat.start() + 1);
             var ver = safeParseVersion(potential, path.getFileName().toString());
             var name = mat.replaceAll("");
-            return new SimpleJarMetadata(cleanModuleName(name), ver, packagesSupplier, providers);
+            return new NameAndVersion(cleanModuleName(name), ver);
         } else {
-            return new SimpleJarMetadata(cleanModuleName(fn), null, packagesSupplier, providers);
+            return new NameAndVersion(cleanModuleName(fn), null);
         }
     }
 
@@ -148,11 +148,12 @@ public interface JarMetadata {
     }
 
     /**
-     * @deprecated Use {@link #fromFileName(Path, Supplier, List)} instead.
+     * @deprecated Build from jar contents directly using {@link #from(JarContents)}.
      */
-    @Deprecated(forRemoval = true, since = "TODO when?")
+    @Deprecated(forRemoval = true, since = "2.1.23")
     static SimpleJarMetadata fromFileName(final Path path, final Set<String> pkgs, final List<SecureJar.Provider> providers) {
-        return fromFileName(path, () -> pkgs, providers);
+        var nav = computeNameAndVersion(path);
+        return new SimpleJarMetadata(nav.name(), nav.version(), () -> pkgs, providers);
     }
 
     /**
