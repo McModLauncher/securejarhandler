@@ -1,6 +1,7 @@
 package cpw.mods.cl;
 
 import cpw.mods.util.LambdaExceptionUtils;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,10 +65,15 @@ public class ModuleClassLoader extends ClassLoader {
     private final Map<String, JarModuleFinder.JarModuleReference> resolvedRoots;
     private final Map<String, ResolvedModule> packageLookup;
     private final Map<String, ClassLoader> parentLoaders;
-    private ClassLoader fallbackClassLoader = ClassLoader.getPlatformClassLoader();
+    private ClassLoader fallbackClassLoader;
 
     public ModuleClassLoader(final String name, final Configuration configuration, final List<ModuleLayer> parentLayers) {
-        super(name, null);
+        this(name, configuration, parentLayers, null);
+    }
+
+    public ModuleClassLoader(final String name, final Configuration configuration, final List<ModuleLayer> parentLayers, @Nullable ClassLoader parentLoader) {
+        super(name, parentLoader);
+        this.fallbackClassLoader = Objects.requireNonNullElse(parentLoader, ClassLoader.getPlatformClassLoader());
         this.configuration = configuration;
         this.packageLookup = new HashMap<>();
         this.resolvedRoots = configuration.modules().stream()
