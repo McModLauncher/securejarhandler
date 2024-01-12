@@ -32,6 +32,7 @@ public class ProtectionDomainHelper {
     private static final VarHandle PKG_MODULE_HANDLE;
     static {
         try {
+            // Obtain VarHandle for NamedPackage#module via trusted lookup
             var trustedLookupField = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
             trustedLookupField.setAccessible(true);
             MethodHandles.Lookup trustedLookup = (MethodHandles.Lookup) trustedLookupField.get(null);
@@ -39,17 +40,19 @@ public class ProtectionDomainHelper {
             Class<?> namedPackage = Class.forName("java.lang.NamedPackage");
             PKG_MODULE_HANDLE = trustedLookup.findVarHandle(namedPackage, "module", Module.class);
         } catch (Throwable t) {
-            throw new RuntimeException(t);
+            throw new RuntimeException("Error finding package module handle", t);
         }
     }
 
     static void trySetPackageModule(Package pkg, Module module) {
+        // Ensure named packages are bound to their module of origin
+        // Necessary for loading package-info classes
         Module value = (Module) PKG_MODULE_HANDLE.get(pkg);
         if (value == null || !value.isNamed()) {
             try {
                 PKG_MODULE_HANDLE.set(pkg, module);
             } catch (Throwable t) {
-                throw new RuntimeException(t);
+                throw new RuntimeException("Error setting package module", t);
             }
         }
     }
