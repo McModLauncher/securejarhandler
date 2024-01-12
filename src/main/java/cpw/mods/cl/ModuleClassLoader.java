@@ -2,6 +2,7 @@ package cpw.mods.cl;
 
 import cpw.mods.util.LambdaExceptionUtils;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.VisibleForTesting;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,6 +72,20 @@ public class ModuleClassLoader extends ClassLoader {
         this(name, configuration, parentLayers, null);
     }
 
+    /**
+     * This constructor allows setting the parent {@linkplain ClassLoader classloader}. Use this with caution since
+     * it will allow loading of classes from the classpath directly if the {@linkplain ClassLoader#getSystemClassLoader() system classloader}
+     * is reachable from the given parent classloader.
+     * <p/>
+     * Generally classes that are in packages covered by reachable modules are preferably loaded from these modules.
+     * If a class-path entry is not shadowed by a module, specifying a parent class-loader may lead to those
+     * classes now being loadable instead of throwing a {@link ClassNotFoundException}.
+     * <p/>
+     * This relaxed classloader isolation is used in unit-testing, where testing libraries are loaded on the
+     * system class-loader outside our control (by the Gradle test runner). We must not reload these classes
+     * inside the module layers again, otherwise tests throw incompatible exceptions or may not be found at all.
+     */
+    @VisibleForTesting
     public ModuleClassLoader(final String name, final Configuration configuration, final List<ModuleLayer> parentLayers, @Nullable ClassLoader parentLoader) {
         super(name, parentLoader);
         this.fallbackClassLoader = Objects.requireNonNullElse(parentLoader, ClassLoader.getPlatformClassLoader());
