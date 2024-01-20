@@ -114,7 +114,7 @@ public class JarContentsImpl implements JarContents {
             return Map.of();
         }
 
-        var vers = filesystem.getRoot().resolve("META-INF/versions");
+        var vers = filesystem.getPath("").resolve("META-INF/versions");
         try (var walk = Files.walk(vers)) {
             Map<Path, Integer> pathToJavaVersion = new HashMap<>();
             walk
@@ -161,7 +161,7 @@ public class JarContentsImpl implements JarContents {
 
         Set<String> packages = new HashSet<>();
         try {
-            Files.walkFileTree(this.filesystem.getRoot(), new SimpleFileVisitor<>() {
+            Files.walkFileTree(this.filesystem.getPath(""), new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     if (file.getFileName().toString().endsWith(".class") && attrs.isRegularFile()) {
