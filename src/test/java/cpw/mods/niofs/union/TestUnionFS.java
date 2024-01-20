@@ -11,13 +11,22 @@ import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestUnionFS {
     
@@ -142,6 +151,8 @@ public class TestUnionFS {
         var npath = Paths.get(uri);
         var input = assertDoesNotThrow(() -> Files.newInputStream(npath));
         var data = assertDoesNotThrow(() -> input.readAllBytes());
+
+        assertFalse(Files.exists(outer.getPath("definitely", "does", "not", "exist")));
     }
 
     @Test
@@ -199,9 +210,35 @@ public class TestUnionFS {
         final var fileSystem = UFSP.newFileSystem(jar1, Map.of("additional", List.of(jar2, jar3)));
         var root = fileSystem.getPath("/");
         try (var dirStream = Files.newDirectoryStream(root)) {
+            final List<String> foundFiles = new ArrayList<>();
             assertAll(
-                    StreamSupport.stream(dirStream.spliterator(), false).map(p->()->Files.exists(p))
+                    StreamSupport.stream(dirStream.spliterator(), false)
+                        .peek(path -> foundFiles.add(path.toString()))
+                        .map(p-> ()-> {
+                            if (!Files.exists(p)) {
+                                throw new NoSuchFileException(p.toString());
+                            }
+                        })
             );
+            assertEquals(foundFiles, List.of(
+                    "log4j2.xml",
+                    "module-info.class",
+                    "cpw",
+                    "META-INF",
+                    "LICENSE.txt",
+                    "CREDITS.txt",
+                    "url.png",
+                    "pack.mcmeta",
+                    "mcplogo.png",
+                    "forge_logo.png",
+                    "forge.srg",
+                    "forge.sas",
+                    "forge.exc",
+                    "data",
+                    "coremods",
+                    "assets",
+                    "net"
+            ));
         }
     }
     @Test
