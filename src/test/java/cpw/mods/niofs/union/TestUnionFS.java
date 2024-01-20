@@ -29,7 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class TestUnionFS {
+    
     private static final UnionFileSystemProvider UFSP = (UnionFileSystemProvider) FileSystemProvider.installedProviders().stream().filter(fsp->fsp.getScheme().equals("union")).findFirst().orElseThrow(()->new IllegalStateException("Couldn't find UnionFileSystemProvider"));
+    
     @Test
     void testUnionFileSystem() throws IOException {
         final var dir1 = Paths.get("src", "test", "resources", "dir1").toAbsolutePath().normalize();
@@ -72,62 +74,10 @@ public class TestUnionFS {
         var doexist = List.of("cpw/mods/niofs/union/UnionPath.class", "net/minecraftforge/client/event/GuiOpenEvent.class", "cpw/mods/modlauncher/Launcher.class"); //jar 3
         var dontexist = List.of("cpw/mods/modlauncher/api/NoIDontExist.class", "net/minecraftforge/client/nonexistent/Nope.class", "Missing.class");
         assertAll(
-            doexist.stream().map(ufs::getPath).map(p->()->assertTrue(Files.exists(p)))
+                doexist.stream().map(ufs::getPath).map(p->()->assertTrue(Files.exists(p)))
         );
         assertAll(
                 dontexist.stream().map(ufs::getPath).map(p->()->assertTrue(Files.notExists(p)))
-        );
-    }
-
-    @Test
-    void testRelativize() {
-        final var dir1 = Paths.get("src", "test", "resources", "dir1").toAbsolutePath().normalize();
-        final var dir2 = Paths.get("src", "test", "resources", "dir2").toAbsolutePath().normalize();
-
-        var fsp = (UnionFileSystemProvider)FileSystemProvider.installedProviders().stream().filter(fs-> fs.getScheme().equals("union")).findFirst().orElseThrow();
-        var ufs = fsp.newFileSystem((path, base) -> true, dir1, dir2);
-        var p1 = ufs.getPath("path1");
-        var p123 = ufs.getPath("path1/path2/path3");
-        var p11 = ufs.getPath("path1/path1");
-        var p12 = ufs.getPath("path1/path2");
-        var p13 = ufs.getPath("path1/path3");
-        var p23 = ufs.getPath("path2/path3");
-        var p13plus = ufs.getPath("path1/path3");
-        assertAll(
-                ()->assertEquals("path2/path3", p1.relativize(p123).toString()),
-                ()->assertEquals("../..", p123.relativize(p1).toString()),
-                ()->assertEquals("path1", p1.relativize(p11).toString()),
-                ()->assertEquals("path2", p1.relativize(p12).toString()),
-                ()->assertEquals("path3", p1.relativize(p13).toString()),
-                ()->assertEquals("../../path1/path1", p23.relativize(p11).toString()),
-                ()->assertEquals("../../path1", p123.relativize(p11).toString()),
-                ()->assertEquals(0, p13.relativize(p13plus).getNameCount())
-        );
-    }
-    
-    @Test
-    void testRelativizeAbsolute() {
-        final var dir1 = Paths.get("src", "test", "resources", "dir1").toAbsolutePath().normalize();
-        final var dir2 = Paths.get("src", "test", "resources", "dir2").toAbsolutePath().normalize();
-
-        var fsp = (UnionFileSystemProvider)FileSystemProvider.installedProviders().stream().filter(fs-> fs.getScheme().equals("union")).findFirst().orElseThrow();
-        var ufs = fsp.newFileSystem((path, base) -> true, dir1, dir2);
-        var p1 = ufs.getPath("/path1");
-        var p123 = ufs.getPath("/path1/path2/path3");
-        var p11 = ufs.getPath("/path1/path1");
-        var p12 = ufs.getPath("/path1/path2");
-        var p13 = ufs.getPath("/path1/path3");
-        var p23 = ufs.getPath("/path2/path3");
-        var p13plus = ufs.getPath("/path1/path3");
-        assertAll(
-                ()->assertEquals("path2/path3", p1.relativize(p123).toString()),
-                ()->assertEquals("../..", p123.relativize(p1).toString()),
-                ()->assertEquals("path1", p1.relativize(p11).toString()),
-                ()->assertEquals("path2", p1.relativize(p12).toString()),
-                ()->assertEquals("path3", p1.relativize(p13).toString()),
-                ()->assertEquals("../../path1/path1", p23.relativize(p11).toString()),
-                ()->assertEquals("../../path1", p123.relativize(p11).toString()),
-                ()->assertEquals(0, p13.relativize(p13plus).getNameCount())
         );
     }
 

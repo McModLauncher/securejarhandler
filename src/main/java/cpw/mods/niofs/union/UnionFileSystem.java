@@ -397,7 +397,7 @@ public class UnionFileSystem extends FileSystem {
             closeables.add(ds);
             final var currentPaths = StreamSupport.stream(ds.spliterator(), false)
                     .filter(p -> testFilter(p, bp))
-                    .map(other -> fastPath(isSimple ? other : bp.relativize(other)));
+                    .map(other -> fastPath(isSimple ? other : bp.toAbsolutePath().relativize(other.toAbsolutePath())));
             stream = Stream.concat(stream, currentPaths);
         }
         final Stream<Path> realStream = stream.distinct();
@@ -452,7 +452,7 @@ public class UnionFileSystem extends FileSystem {
 
         var sPath = path.toString();
         if (path.getFileSystem() == basePath.getFileSystem()) // Directories, zips will be different file systems.
-            sPath = basePath.relativize(path).toString().replace('\\', '/');
+            sPath = basePath.toAbsolutePath().relativize(path.toAbsolutePath()).toString().replace('\\', '/');
         if (Files.isDirectory(path))
             sPath += '/';
         if (sPath.length() > 1 && sPath.startsWith("/"))
