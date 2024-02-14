@@ -11,7 +11,6 @@ import java.nio.file.*;
 import java.nio.file.attribute.*;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.*;
-import java.util.function.BiPredicate;
 import java.util.stream.Stream;
 
 public class UnionFileSystemProvider extends FileSystemProvider {
@@ -55,24 +54,7 @@ public class UnionFileSystemProvider extends FileSystemProvider {
      */
     @Override
     public FileSystem newFileSystem(final URI uri, final Map<String, ?> env) throws IOException {
-        @SuppressWarnings("unchecked")
-        var additional = ((Map<String, List<Path>>)env).getOrDefault("additional", List.<Path>of());
-        @SuppressWarnings("unchecked")
-        var filter = ((Map<String, BiPredicate<String, String>>)env).getOrDefault("filter", null);
-
-        if (filter == null && additional.isEmpty())
-            throw new IllegalArgumentException("Missing additional and/or filter");
-
-        if (filter == null)
-            filter = (p, b) -> true;
-
-        var path = uriToPath(uri);
-        var key = makeKey(path);
-        try {
-            return newFileSystemInternal(key, filter, Stream.concat(Stream.of(path), additional.stream()).toArray(Path[]::new));
-        } catch (UncheckedIOException e) {
-            throw e.getCause();
-        }
+        return newFileSystem(uriToPath(uri), env);
     }
 
     /**
@@ -87,8 +69,7 @@ public class UnionFileSystemProvider extends FileSystemProvider {
     public FileSystem newFileSystem(final Path path, final Map<String, ?> env) throws IOException {
         @SuppressWarnings("unchecked")
         var additional = ((Map<String, List<Path>>)env).getOrDefault("additional", List.<Path>of());
-        @SuppressWarnings("unchecked")
-        var filter = ((Map<String, BiPredicate<String, String>>)env).getOrDefault("filter", null);
+        var filter = readFilterFromEnv(env);
 
         if (filter == null && additional.isEmpty())
             throw new UnsupportedOperationException("Missing additional and/or filter");
@@ -101,13 +82,26 @@ public class UnionFileSystemProvider extends FileSystemProvider {
         }
     }
 
-    public UnionFileSystem newFileSystem(@Nullable BiPredicate<String, String> pathfilter, final Path... paths) {
+    @Nullable
+    private static UnionPathFilter readFilterFromEnv(Map<String, ?> env) {
+        Object filter = env.get("filter");
+
+        if (filter == null) {
+            return null;
+        } else if (filter instanceof UnionPathFilter unionPathFilter) {
+            return unionPathFilter;
+        } else {
+            throw new IllegalArgumentException("Unknown type for \"filter\" UnionFileSystem env var: " + filter.getClass().getName());
+        }
+    }
+
+    public UnionFileSystem newFileSystem(@Nullable UnionPathFilter pathfilter, final Path... paths) {
         if (paths.length == 0) throw new IllegalArgumentException("Need at least one path");
         var key = makeKey(paths[0]);
         return newFileSystemInternal(key, pathfilter, paths);
     }
 
-    private UnionFileSystem newFileSystemInternal(final String key, @Nullable BiPredicate<String, String> pathfilter, final Path... paths) {
+    private UnionFileSystem newFileSystemInternal(final String key, @Nullable UnionPathFilter pathfilter, final Path... paths) {
         var normpaths = Arrays.stream(paths)
                 .map(Path::toAbsolutePath)
                 .map(Path::normalize)
