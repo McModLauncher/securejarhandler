@@ -202,7 +202,7 @@ public class JarContentsImpl implements JarContents {
         if (this.providers == null) {
             final var services = this.filesystem.getRoot().resolve("META-INF/services/");
             if (Files.exists(services)) {
-                try (var walk = Files.walk(services)) {
+                try (var walk = Files.walk(services, 1)) {
                     this.providers = walk.filter(path->!Files.isDirectory(path))
                             .map((Path path1) -> SecureJar.Provider.fromPath(path1, filesystem.getFilesystemFilter()))
                             .toList();
