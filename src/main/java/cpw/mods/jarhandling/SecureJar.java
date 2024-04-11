@@ -140,7 +140,7 @@ public interface SecureJar {
             try {
                 var entries = Files.readAllLines(path).stream()
                         .map(String::trim)
-                        .filter(l->l.length() > 0 && !l.startsWith("#")) // We support comments :)
+                        .filter(l-> !l.isEmpty() && !l.startsWith("#")) // We support comments :)
                         .filter(p-> pkgFilter == null || pkgFilter.test(p.replace('.','/'), ""))
                         .toList();
                 return new Provider(sname, entries);

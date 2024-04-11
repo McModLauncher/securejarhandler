@@ -2,13 +2,13 @@ package cpw.mods.jarhandling.impl;
 
 import cpw.mods.jarhandling.JarMetadata;
 import cpw.mods.jarhandling.SecureJar;
-import cpw.mods.niofs.union.UnionFileSystem;
 import cpw.mods.util.LambdaExceptionUtils;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.InputStream;
 import java.lang.module.ModuleDescriptor;
 import java.net.URI;
+import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -24,7 +24,7 @@ public class Jar implements SecureJar {
     private final JarContentsImpl contents;
     private final Manifest manifest;
     private final JarSigningData signingData;
-    private final UnionFileSystem filesystem;
+    private final FileSystem filesystem;
 
     private final JarModuleDataProvider moduleDataProvider;
 
@@ -66,7 +66,7 @@ public class Jar implements SecureJar {
 
     @Override
     public Path getPrimaryPath() {
-        return filesystem.getPrimaryPath();
+        return contents.getPrimaryPath();
     }
 
     public Optional<URI> findFile(final String name) {
