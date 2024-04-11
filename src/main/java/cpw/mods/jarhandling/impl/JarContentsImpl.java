@@ -2,7 +2,6 @@ package cpw.mods.jarhandling.impl;
 
 import cpw.mods.jarhandling.JarContents;
 import cpw.mods.jarhandling.SecureJar;
-import cpw.mods.niofs.union.UnionFileSystem;
 import cpw.mods.niofs.union.UnionFileSystemProvider;
 import cpw.mods.niofs.union.UnionPathFilter;
 import org.jetbrains.annotations.Nullable;
@@ -10,6 +9,8 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +31,7 @@ import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 public class JarContentsImpl implements JarContents {
+    private static final boolean USE_UNION_FS_ONLY_IF_NEEDED = Boolean.getBoolean("securejarhandler.useUnionFsOnlyIfNeeded");
     private static final UnionFileSystemProvider UFSP = (UnionFileSystemProvider) FileSystemProvider.installedProviders()
             .stream()
             .filter(fsp->fsp.getScheme().equals("union"))
@@ -37,7 +39,11 @@ public class JarContentsImpl implements JarContents {
             .orElseThrow(()->new IllegalStateException("Couldn't find UnionFileSystemProvider"));
     private static final Set<String> NAUGHTY_SERVICE_FILES = Set.of("org.codehaus.groovy.runtime.ExtensionModule");
 
-    final UnionFileSystem filesystem;
+    final FileSystem filesystem;
+    final Path rootPath;
+    final Path primaryPath;
+    @Nullable
+    final BiPredicate<String, String> pathFilter;
     // Code signing data
     final JarSigningData signingData = new JarSigningData();
     // Manifest of the jar
@@ -54,7 +60,18 @@ public class JarContentsImpl implements JarContents {
         var validPaths = Arrays.stream(paths).filter(Files::exists).toArray(Path[]::new);
         if (validPaths.length == 0)
             throw new UncheckedIOException(new IOException("Invalid paths argument, contained no existing paths: " + Arrays.toString(paths)));
-        this.filesystem = UFSP.newFileSystem(pathFilter, validPaths);
+        if (USE_UNION_FS_ONLY_IF_NEEDED && pathFilter == null && validPaths.length == 1 && !Files.isDirectory(validPaths[0])) {
+            try {
+                this.filesystem = FileSystems.newFileSystem(validPaths[0]);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to open " + validPaths[0], e);
+            }
+        } else {
+            this.filesystem = UFSP.newFileSystem(pathFilter, validPaths);
+        }
+        this.pathFilter = pathFilter;
+        this.primaryPath = validPaths[0];
+        this.rootPath = this.filesystem.getRootDirectories().iterator().next();
         // Find the manifest, and read its signing data
         this.manifest = readManifestAndSigningData(defaultManifest, validPaths);
         // Read multi-release jar information
@@ -116,7 +133,7 @@ public class JarContentsImpl implements JarContents {
             return Map.of();
         }
 
-        var vers = filesystem.getRoot().resolve("META-INF/versions");
+        var vers = rootPath.resolve("META-INF/versions");
         if (!Files.isDirectory(vers)) return Map.of();
 
         try (var walk = Files.walk(vers)) {
@@ -140,7 +157,7 @@ public class JarContentsImpl implements JarContents {
 
     @Override
     public Path getPrimaryPath() {
-        return filesystem.getPrimaryPath();
+        return primaryPath;
     }
 
     @Override
@@ -149,7 +166,7 @@ public class JarContentsImpl implements JarContents {
         if (this.nameOverrides.containsKey(rel)) {
             rel = this.filesystem.getPath("META-INF", "versions", this.nameOverrides.get(rel).toString()).resolve(rel);
         }
-        return Optional.of(this.filesystem.getRoot().resolve(rel)).filter(Files::exists).map(Path::toUri);
+        return Optional.of(this.rootPath.resolve(rel)).filter(Files::exists).map(Path::toUri);
     }
 
     @Override
@@ -165,7 +182,7 @@ public class JarContentsImpl implements JarContents {
 
         Set<String> packages = new HashSet<>();
         try {
-            Files.walkFileTree(this.filesystem.getRoot(), new SimpleFileVisitor<>() {
+            Files.walkFileTree(this.rootPath, new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     if (file.getFileName().toString().endsWith(".class") && attrs.isRegularFile()) {
@@ -202,12 +219,12 @@ public class JarContentsImpl implements JarContents {
     @Override
     public List<SecureJar.Provider> getMetaInfServices() {
         if (this.providers == null) {
-            final var services = this.filesystem.getRoot().resolve("META-INF/services/");
+            final var services = this.rootPath.resolve("META-INF/services/");
             if (Files.exists(services)) {
                 try (var walk = Files.walk(services, 1)) {
                     this.providers = walk.filter(path->!Files.isDirectory(path))
                             .filter(path -> !NAUGHTY_SERVICE_FILES.contains(path.getFileName().toString()))
-                            .map((Path path1) -> SecureJar.Provider.fromPath(path1, filesystem.getFilesystemFilter()))
+                            .map((Path path1) -> SecureJar.Provider.fromPath(path1, pathFilter))
                             .toList();
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
