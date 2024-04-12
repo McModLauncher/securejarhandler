@@ -218,4 +218,9 @@ public class JarContentsImpl implements JarContents {
         }
         return this.providers;
     }
+
+    @Override
+    public void close() throws IOException {
+        filesystem.close();
+    }
 }

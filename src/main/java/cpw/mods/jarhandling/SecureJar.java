@@ -28,7 +28,7 @@ import java.util.jar.Manifest;
  * A secure jar is the full definition for a module,
  * including all its paths and code signing metadata.
  */
-public interface SecureJar {
+public interface SecureJar extends AutoCloseable {
     /**
      * Creates a jar from a list of paths.
      * See {@link JarContentsBuilder} for more configuration options.
@@ -85,6 +85,13 @@ public interface SecureJar {
      * {@return the root path in the jar's own filesystem}
      */
     Path getRootPath();
+
+    /**
+     * Closes the underlying file system resources (if any).
+     * Renders this object unusable.
+     */
+    @Override
+    void close() throws IOException;
 
     /**
      * All the functions that are necessary to turn a {@link SecureJar} into a module.
