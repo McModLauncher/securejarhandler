@@ -226,7 +226,7 @@ public class UnionFileSystem extends FileSystem {
 
     private Optional<BasicFileAttributes> getFileAttributes(final Path path) {
         try {
-            Boolean fastCheck = tryFastPathExists(this, path);
+            Boolean fastCheck = tryFastPathExists(path);
             if (fastCheck != null && !fastCheck) {
                 return Optional.empty();
             } else {
@@ -241,8 +241,8 @@ public class UnionFileSystem extends FileSystem {
      * Checks if a path exists using optimized filesystem-specific code.
      * (With a fallback to the regular {@link Files#exists(Path, LinkOption...)}).
      */
-    private static boolean fastPathExists(UnionFileSystem ufs, Path path) {
-        Boolean result = tryFastPathExists(ufs, path);
+    private static boolean fastPathExists(Path path) {
+        Boolean result = tryFastPathExists(path);
         return result != null ? result : Files.exists(path);
     }
 
@@ -251,7 +251,7 @@ public class UnionFileSystem extends FileSystem {
      * or returns {@code null} if there is no optimized code for that particular filesystem.
      */
     @Nullable
-    private static Boolean tryFastPathExists(UnionFileSystem ufs, Path path) {
+    private static Boolean tryFastPathExists(Path path) {
         if (path.getFileSystem() == FileSystems.getDefault()) {
             return path.toFile().exists();
         }
@@ -274,7 +274,7 @@ public class UnionFileSystem extends FileSystem {
             final Path realPath = toRealPath(p, unionPath);
             // Test if the real path exists and matches the filter of this file system
             if (testFilter(realPath, p, null)) {
-                if (fastPathExists(this, realPath)) {
+                if (fastPathExists(realPath)) {
                     return Optional.of(realPath);
                 }
             }
@@ -325,7 +325,7 @@ public class UnionFileSystem extends FileSystem {
             findFirstFiltered(p).ifPresentOrElse(path -> {
                 try {
                     if (modes.length == 0) {
-                        if (!fastPathExists(this, path)) {
+                        if (!fastPathExists(path)) {
                             throw new UncheckedIOException(new NoSuchFileException(p.toString()));
                         }
                     } else {
@@ -340,6 +340,10 @@ public class UnionFileSystem extends FileSystem {
         } catch (UncheckedIOException e) {
             throw e.getCause();
         }
+    }
+
+    public boolean exists(final UnionPath p) {
+        return findFirstFiltered(p).map(UnionFileSystem::fastPathExists).orElse(false);
     }
 
     private Path toRealPath(final Path basePath, final UnionPath path) {
@@ -379,7 +383,7 @@ public class UnionFileSystem extends FileSystem {
         Stream<Path> stream = Stream.empty();
         for (final var bp : basepaths) {
             final var dir = toRealPath(bp, path);
-            if (!fastPathExists(this, dir)) {
+            if (!fastPathExists(dir)) {
                 continue;
             }
             final var isSimple = embeddedFileSystems.containsKey(bp);

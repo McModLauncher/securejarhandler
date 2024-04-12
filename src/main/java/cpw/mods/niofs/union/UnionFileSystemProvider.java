@@ -256,6 +256,14 @@ public class UnionFileSystemProvider extends FileSystemProvider {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public boolean exists(Path path, LinkOption... options) {
+        if (path instanceof UnionPath p) {
+            return p.getFileSystem().exists(p);
+        }
+        throw new UnsupportedOperationException();
+    }
+
     void removeFileSystem(UnionFileSystem fs) {
         synchronized (fileSystems) {
             fileSystems.remove(fs.getKey());
