@@ -2,6 +2,7 @@ package cpw.mods.jarhandling;
 
 import cpw.mods.jarhandling.impl.Jar;
 import cpw.mods.jarhandling.impl.JarContentsImpl;
+import cpw.mods.niofs.union.UnionPathFilter;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
@@ -135,13 +136,13 @@ public interface SecureJar {
         /**
          * Helper method to parse service provider implementations from a {@link Path}.
          */
-        public static Provider fromPath(final Path path, final BiPredicate<String, String> pkgFilter) {
+        public static Provider fromPath(final Path path, final UnionPathFilter pkgFilter) {
             final var sname = path.getFileName().toString();
             try {
                 var entries = Files.readAllLines(path).stream()
                         .map(String::trim)
-                        .filter(l->l.length() > 0 && !l.startsWith("#")) // We support comments :)
-                        .filter(p-> pkgFilter == null || pkgFilter.test(p.replace('.','/'), ""))
+                        .filter(l-> !l.isEmpty() && !l.startsWith("#")) // We support comments :)
+                        .filter(p-> pkgFilter == null || pkgFilter.test(p.replace('.','/'), path.getRoot()))
                         .toList();
                 return new Provider(sname, entries);
             } catch (IOException e) {
@@ -176,7 +177,7 @@ public interface SecureJar {
      * @deprecated Use {@link JarContentsBuilder} and {@link #from(JarContents)} instead.
      */
     @Deprecated(forRemoval = true, since = "2.1.16")
-    static SecureJar from(BiPredicate<String, String> filter, final Path... paths) {
+    static SecureJar from(UnionPathFilter filter, final Path... paths) {
         return from(jar->JarMetadata.from(jar, paths), filter, paths);
     }
 
@@ -192,7 +193,7 @@ public interface SecureJar {
      * @deprecated Use {@link JarContentsBuilder} and {@link #from(JarContents)} instead.
      */
     @Deprecated(forRemoval = true, since = "2.1.16")
-    static SecureJar from(Function<SecureJar, JarMetadata> metadataSupplier, BiPredicate<String, String> filter, final Path... paths) {
+    static SecureJar from(Function<SecureJar, JarMetadata> metadataSupplier, UnionPathFilter filter, final Path... paths) {
         return from(Manifest::new, metadataSupplier, filter, paths);
     }
 
@@ -208,7 +209,7 @@ public interface SecureJar {
      * @deprecated Use {@link JarContentsBuilder} and {@link #from(JarContents)} instead.
      */
     @Deprecated(forRemoval = true, since = "2.1.16")
-    static SecureJar from(Supplier<Manifest> defaultManifest, Function<SecureJar, JarMetadata> metadataSupplier, BiPredicate<String, String> filter, final Path... paths) {
+    static SecureJar from(Supplier<Manifest> defaultManifest, Function<SecureJar, JarMetadata> metadataSupplier, UnionPathFilter filter, final Path... paths) {
         return new Jar(defaultManifest, metadataSupplier, filter, paths);
     }
 }

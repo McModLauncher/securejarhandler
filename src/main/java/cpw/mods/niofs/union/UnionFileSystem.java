@@ -6,10 +6,7 @@ import java.io.*;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.lang.reflect.Method;
-import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
-import java.nio.channels.InterruptibleChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessMode;
 import java.nio.file.DirectoryStream;
@@ -27,14 +24,10 @@ import java.nio.file.attribute.UserPrincipalLookupService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -104,7 +97,7 @@ public class UnionFileSystem extends FileSystem {
     private final List<Path> basepaths;
     private final int lastElementIndex;
     @Nullable
-    private final BiPredicate<String, String> pathFilter;
+    private final UnionPathFilter pathFilter;
     private final Map<Path, EmbeddedFileSystemMetadata> embeddedFileSystems;
 
     public Path getPrimaryPath() {
@@ -112,7 +105,7 @@ public class UnionFileSystem extends FileSystem {
     }
 
     @Nullable
-    public BiPredicate<String, String> getFilesystemFilter() {
+    public UnionPathFilter getFilesystemFilter() {
         return pathFilter;
     }
 
@@ -123,7 +116,7 @@ public class UnionFileSystem extends FileSystem {
     private record EmbeddedFileSystemMetadata(Path path, FileSystem fs, SeekableByteChannel fsCh) {
     }
 
-    public UnionFileSystem(final UnionFileSystemProvider provider, @Nullable BiPredicate<String, String> pathFilter, final String key, final Path... basepaths) {
+    public UnionFileSystem(final UnionFileSystemProvider provider, @Nullable UnionPathFilter pathFilter, final String key, final Path... basepaths) {
         this.pathFilter = pathFilter;
         this.provider = provider;
         this.key = key;
@@ -458,9 +451,6 @@ public class UnionFileSystem extends FileSystem {
             sPath += '/';
         if (sPath.length() > 1 && sPath.startsWith("/"))
             sPath = sPath.substring(1);
-        String sBasePath = basePath.toString().replace('\\', '/');
-        if (sBasePath.length() > 1 && sBasePath.startsWith("/"))
-            sBasePath = sBasePath.substring(1);
-        return pathFilter.test(sPath, sBasePath);
+        return pathFilter.test(sPath, basePath);
     }
 }

@@ -3,6 +3,7 @@ package cpw.mods.jarhandling.impl;
 import cpw.mods.jarhandling.JarMetadata;
 import cpw.mods.jarhandling.SecureJar;
 import cpw.mods.niofs.union.UnionFileSystem;
+import cpw.mods.niofs.union.UnionPathFilter;
 import cpw.mods.util.LambdaExceptionUtils;
 import org.jetbrains.annotations.Nullable;
 
@@ -31,7 +32,7 @@ public class Jar implements SecureJar {
     private final JarMetadata metadata;
 
     @Deprecated(forRemoval = true, since = "2.1.16")
-    public Jar(final Supplier<Manifest> defaultManifest, final Function<SecureJar, JarMetadata> metadataFunction, final BiPredicate<String, String> pathfilter, final Path... paths) {
+    public Jar(final Supplier<Manifest> defaultManifest, final Function<SecureJar, JarMetadata> metadataFunction, final UnionPathFilter pathfilter, final Path... paths) {
         this.contents = new JarContentsImpl(paths, defaultManifest, pathfilter);
         this.manifest = contents.getManifest();
         this.signingData = contents.signingData;
