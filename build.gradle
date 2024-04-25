@@ -1,3 +1,5 @@
+import net.neoforged.gradleutils.PomUtilsExtension.License
+
 buildscript {
     dependencies {
         classpath('de.jjohannes.gradle:extra-java-module-info:0.14')
