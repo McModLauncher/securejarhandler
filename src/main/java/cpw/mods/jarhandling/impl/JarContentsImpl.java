@@ -43,7 +43,7 @@ public class JarContentsImpl implements JarContents {
     final Path rootPath;
     final Path primaryPath;
     @Nullable
-    final BiPredicate<String, String> pathFilter;
+    final UnionPathFilter pathFilter;
     // Code signing data
     final JarSigningData signingData = new JarSigningData();
     // Manifest of the jar
