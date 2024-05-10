@@ -126,6 +126,7 @@ dependencies {
     api("org.ow2.asm:asm-commons:${project.asm_version}")
     implementation("org.jetbrains:annotations:${project.jb_annotations_version}")
     testImplementation('org.junit.jupiter:junit-jupiter-api:5.8.+')
+    testImplementation("org.assertj:assertj-core:3.25.1")
     testRuntimeOnly('org.junit.jupiter:junit-jupiter-engine:5.8.+')
 }
 
