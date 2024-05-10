@@ -1,5 +1,7 @@
 package cpw.mods.util;
 
+import org.jetbrains.annotations.ApiStatus;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.invoke.MethodHandle;
@@ -14,6 +16,7 @@ import java.nio.file.Path;
 /**
  * Utilities for dealing with ZipFilesystems.
  */
+@ApiStatus.Internal
 public final class ZipFsFactory {
     private static final MethodHandle ZIPFS_CH;
     private static final MethodHandle FCI_UNINTERUPTIBLE;
