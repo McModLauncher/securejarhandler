@@ -1,15 +1,12 @@
 package cpw.mods.niofs.union;
 
+import cpw.mods.util.ZipFsFactory;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
-import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.AccessMode;
 import java.nio.file.DirectoryStream;
@@ -38,26 +35,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class UnionFileSystem extends FileSystem {
-    private static final MethodHandle ZIPFS_CH;
-    private static final MethodHandle FCI_UNINTERUPTIBLE;
     static final String SEP_STRING = "/";
-
-
-    static {
-        try {
-            var hackfield = MethodHandles.Lookup.class.getDeclaredField("IMPL_LOOKUP");
-            hackfield.setAccessible(true);
-            MethodHandles.Lookup hack = (MethodHandles.Lookup) hackfield.get(null);
-
-            var clz = Class.forName("jdk.nio.zipfs.ZipFileSystem");
-            ZIPFS_CH = hack.findGetter(clz, "ch", SeekableByteChannel.class);
-
-            clz = Class.forName("sun.nio.ch.FileChannelImpl");
-            FCI_UNINTERUPTIBLE = hack.findSpecial(clz, "setUninterruptible", MethodType.methodType(void.class), clz);
-        } catch (NoSuchFieldException | IllegalAccessException | ClassNotFoundException | NoSuchMethodException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public InputStream buildInputStream(final UnionPath path) {
         try {
@@ -101,7 +79,7 @@ public class UnionFileSystem extends FileSystem {
     private final int lastElementIndex;
     @Nullable
     private final UnionPathFilter pathFilter;
-    private final Map<Path, EmbeddedFileSystemMetadata> embeddedFileSystems;
+    private final Map<Path, FileSystem> embeddedFileSystems;
 
     public Path getPrimaryPath() {
         return basepaths.get(basepaths.size() - 1);
@@ -116,7 +94,7 @@ public class UnionFileSystem extends FileSystem {
         return this.key;
     }
 
-    private record EmbeddedFileSystemMetadata(Path path, FileSystem fs, SeekableByteChannel fsCh) {
+    private record EmbeddedFileSystemMetadata(Path path, FileSystem fs) {
     }
 
     public UnionFileSystem(final UnionFileSystemProvider provider, @Nullable UnionPathFilter pathFilter, final String key, final Path... basepaths) {
@@ -129,24 +107,7 @@ public class UnionFileSystem extends FileSystem {
                 .toList(); // we flip the list so later elements are first in search order.
         lastElementIndex = basepaths.length - 1;
         this.embeddedFileSystems = this.basepaths.stream().filter(path -> !Files.isDirectory(path))
-                .map(UnionFileSystem::openFileSystem)
-                .flatMap(Optional::stream)
-                .collect(Collectors.toMap(EmbeddedFileSystemMetadata::path, Function.identity()));
-    }
-
-    private static Optional<EmbeddedFileSystemMetadata> openFileSystem(final Path path) {
-        try {
-            var zfs = FileSystems.newFileSystem(path);
-            SeekableByteChannel fci = (SeekableByteChannel) ZIPFS_CH.invoke(zfs);
-            if (fci instanceof FileChannel) { // we only make file channels uninterruptible because byte channels (JIJ) already are
-                FCI_UNINTERUPTIBLE.invoke(fci);
-            }
-            return Optional.of(new EmbeddedFileSystemMetadata(path, zfs, fci));
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to open file system from path " + path, e);
-        } catch (Throwable t) {
-            throw new IllegalStateException("Failed to open file system from path " + path, t);
-        }
+                .collect(Collectors.toMap(Function.identity(), ZipFsFactory::create));
     }
 
     @Override
@@ -352,9 +313,9 @@ public class UnionFileSystem extends FileSystem {
     private Path toRealPath(final Path basePath, final UnionPath path) {
         var embeddedpath = path.isAbsolute() ? this.root.relativize(path) : path;
         var resolvepath = embeddedpath.normalize().toString();
-        var efsm = embeddedFileSystems.get(basePath);
-        if (efsm != null) {
-            return efsm.fs().getPath(resolvepath);
+        var fileSystem = embeddedFileSystems.get(basePath);
+        if (fileSystem != null) {
+            return fileSystem.getPath(resolvepath);
         } else {
             return basePath.resolve(resolvepath);
         }

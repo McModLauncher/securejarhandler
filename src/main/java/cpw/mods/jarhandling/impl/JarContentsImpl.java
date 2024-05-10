@@ -4,13 +4,13 @@ import cpw.mods.jarhandling.JarContents;
 import cpw.mods.jarhandling.SecureJar;
 import cpw.mods.niofs.union.UnionFileSystemProvider;
 import cpw.mods.niofs.union.UnionPathFilter;
+import cpw.mods.util.ZipFsFactory;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,14 +24,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiPredicate;
 import java.util.function.Supplier;
 import java.util.jar.JarFile;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 public class JarContentsImpl implements JarContents {
-    private static final boolean USE_UNION_FS_ONLY_IF_NEEDED = Boolean.getBoolean("securejarhandler.useUnionFsOnlyIfNeeded");
     private static final UnionFileSystemProvider UFSP = (UnionFileSystemProvider) FileSystemProvider.installedProviders()
             .stream()
             .filter(fsp->fsp.getScheme().equals("union"))
@@ -60,12 +58,9 @@ public class JarContentsImpl implements JarContents {
         var validPaths = Arrays.stream(paths).filter(Files::exists).toArray(Path[]::new);
         if (validPaths.length == 0)
             throw new UncheckedIOException(new IOException("Invalid paths argument, contained no existing paths: " + Arrays.toString(paths)));
-        if (USE_UNION_FS_ONLY_IF_NEEDED && pathFilter == null && validPaths.length == 1 && !Files.isDirectory(validPaths[0])) {
-            try {
-                this.filesystem = FileSystems.newFileSystem(validPaths[0]);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to open " + validPaths[0], e);
-            }
+        // Use a ZipFS directly in simple cases
+        if (pathFilter == null && validPaths.length == 1 && !Files.isDirectory(validPaths[0])) {
+            this.filesystem = ZipFsFactory.create(validPaths[0]);
         } else {
             this.filesystem = UFSP.newFileSystem(pathFilter, validPaths);
         }
