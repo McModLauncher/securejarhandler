@@ -1,5 +1,7 @@
 package cpw.mods.cl;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -16,7 +18,7 @@ public class ModularURLHandler implements URLStreamHandlerFactory {
     public static final ModularURLHandler INSTANCE = new ModularURLHandler();
     private Map<String, IURLProvider> handlers;
 
-    public static void initFrom(ModuleLayer layer) {
+    public static void initFrom(@Nullable ModuleLayer layer) {
         var handlers = new HashMap<String, IURLProvider>();
 
         // This handler is required for SJH to work.
