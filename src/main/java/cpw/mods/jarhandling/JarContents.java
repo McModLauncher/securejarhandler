@@ -2,6 +2,7 @@ package cpw.mods.jarhandling;
 
 import org.jetbrains.annotations.ApiStatus;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Path;
@@ -19,7 +20,7 @@ import java.util.jar.Manifest;
  * Convert to a full jar with {@link SecureJar#from(JarContents)}.
  */
 @ApiStatus.NonExtendable
-public interface JarContents extends AutoCloseable {
+public interface JarContents extends Closeable {
     /**
      * @see SecureJar#getPrimaryPath()
      */
@@ -70,10 +71,4 @@ public interface JarContents extends AutoCloseable {
     static JarContents of(Collection<Path> filesOrFolders) {
         return new JarContentsBuilder().paths(filesOrFolders.toArray(new Path[0])).build();
     }
-
-    /**
-     * Closes the underlying resources.
-     */
-    @Override
-    void close() throws IOException;
 }
