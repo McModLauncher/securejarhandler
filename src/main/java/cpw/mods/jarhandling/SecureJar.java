@@ -17,10 +17,6 @@ import java.nio.file.Path;
 import java.security.CodeSigner;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.function.BiPredicate;
-import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
@@ -28,7 +24,7 @@ import java.util.jar.Manifest;
  * A secure jar is the full definition for a module,
  * including all its paths and code signing metadata.
  */
-public interface SecureJar extends AutoCloseable {
+public interface SecureJar {
     /**
      * Creates a jar from a list of paths.
      * See {@link JarContentsBuilder} for more configuration options.
@@ -90,7 +86,6 @@ public interface SecureJar extends AutoCloseable {
      * Closes the underlying file system resources (if any).
      * Renders this object unusable.
      */
-    @Override
     void close() throws IOException;
 
     /**
