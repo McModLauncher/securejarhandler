@@ -31,12 +31,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+/**
+ * Can be instantiated using the public methods in {@link UnionFileSystemProvider}.
+ */
 public class UnionFileSystem extends FileSystem {
     private static final MethodHandle ZIPFS_CH;
     private static final MethodHandle FCI_UNINTERUPTIBLE;
@@ -83,7 +88,7 @@ public class UnionFileSystem extends FileSystem {
         public UncheckedIOException(final IOException cause) {
             super(cause);
         }
-        
+
         public UncheckedIOException(final String message, final IOException cause) {
             super(message, cause);
         }
@@ -107,6 +112,9 @@ public class UnionFileSystem extends FileSystem {
         return basepaths.get(basepaths.size() - 1);
     }
 
+    /**
+     * {@return the filter for this file system, or null if there is none}
+     */
     @Nullable
     public UnionPathFilter getFilesystemFilter() {
         return pathFilter;
@@ -119,7 +127,7 @@ public class UnionFileSystem extends FileSystem {
     private record EmbeddedFileSystemMetadata(Path path, FileSystem fs, SeekableByteChannel fsCh) {
     }
 
-    public UnionFileSystem(final UnionFileSystemProvider provider, @Nullable UnionPathFilter pathFilter, final String key, final Path... basepaths) {
+    UnionFileSystem(UnionFileSystemProvider provider, @Nullable UnionPathFilter pathFilter, String key, Path... basepaths) {
         this.pathFilter = pathFilter;
         this.provider = provider;
         this.key = key;
