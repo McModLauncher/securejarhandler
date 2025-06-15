@@ -138,7 +138,7 @@ public interface SecureJar {
         /**
          * Helper method to parse service provider implementations from a {@link Path}.
          */
-        public static Provider fromPath(final Path path, final UnionPathFilter pkgFilter) {
+        public static Provider fromPath(Path path, @Nullable UnionPathFilter pkgFilter) {
             final var sname = path.getFileName().toString();
             try {
                 var entries = Files.readAllLines(path).stream()
